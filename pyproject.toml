@@ -14,5 +14,32 @@ dev = [
     "sqlfluff>=4.2,<5",
 ]
 
-[tool.sqlfluff]
-# Config lives in .sqlfluff — this section just documents the dialect
+[tool.sqlfluff.core]
+dialect = "sparksql"
+templater = "jinja"
+
+[tool.sqlfluff.templater.jinja]
+apply_dbt_builtins = true
+
+[tool.sqlfluff.templater.jinja.macros]
+dbt_ref = '{% macro ref(model_ref) %}{{ model_ref }}{% endmacro %}'
+dbt_source = '{% macro source(source_name, table_name) %}{{ source_name }}_{{ table_name }}{% endmacro %}'
+dbt_config = '{% macro config() %}{% for k in kwargs %}{% endfor %}{% endmacro %}'
+dbt_var = '{% macro var(variable, default="") %}{{ default }}{% endmacro %}'
+dbt_is_incremental = '{% macro is_incremental() %}true{% endmacro %}'
+
+[tool.sqlfluff.rules.capitalisation.keywords]
+capitalisation_keywords = "upper"
+
+[tool.sqlfluff.rules.capitalisation.identifiers]
+extended_capitalisation_identifiers = "lowercase"
+
+[tool.sqlfluff.rules.capitalisation.functions]
+extended_capitalisation_functions = "upper"
+
+[tool.sqlfluff.rules.layout.long_lines]
+max_line_length = 120
+
+[tool.sqlfluff.rules.ambiguous.column_count]
+# dbt SELECT * is common in staging — skip ambiguous column count
+disable = true
