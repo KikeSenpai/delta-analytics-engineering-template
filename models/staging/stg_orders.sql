@@ -8,13 +8,16 @@
 }}
 
 select
-    order_id,
-    customer_id,
-    order_date,
-    amount,
-    status
-from {{ source('raw', 'orders') }}
+    src.order_id,
+    src.customer_id,
+    src.order_date,
+    src.amount,
+    src.status
+from {{ source('raw', 'orders') }} as src
 
 {% if is_incremental() %}
-where order_date > (select coalesce(max(order_date), date '1970-01-01') from {{ this }})
+    where src.order_date > (
+        select coalesce(prev.order_date, date '1970-01-01')
+        from {{ this }} as prev
+    )
 {% endif %}

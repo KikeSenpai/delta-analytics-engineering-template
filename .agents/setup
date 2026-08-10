@@ -3,50 +3,26 @@ set -euo pipefail
 
 echo "=== .agents/setup: $(date) ==="
 
-# Python toolchain — already in base orb, verify presence
-command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found"; exit 1; }
-command -v pip3 >/dev/null 2>&1 || { echo "ERROR: pip3 not found"; exit 1; }
-
-PYTHON="python3"
-PIP="pip3"
-
-# Create venv if absent
-VENV_DIR=".venv"
-if [ ! -d "$VENV_DIR" ]; then
-  echo "Creating virtual environment..."
-  "$PYTHON" -m venv "$VENV_DIR"
+# uv — install if missing (orb base image may not have it)
+export PATH="$HOME/.local/bin:$PATH"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
-# Use venv pip for installs
-VENV_PIP="$VENV_DIR/bin/pip"
-
-# Upgrade pip quietly
-"$VENV_PIP" install --upgrade pip --quiet
-
-# Install dependencies if lockfile exists
-if [ -f "requirements.txt" ]; then
-  echo "Installing from requirements.txt..."
-  "$VENV_PIP" install -r requirements.txt
+# just — install if missing
+if ! command -v just >/dev/null 2>&1; then
+  echo "Installing just..."
+  curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
 fi
 
-if [ -f "pyproject.toml" ]; then
-  echo "Installing from pyproject.toml..."
-  "$VENV_PIP" install -e ".[dev]" 2>/dev/null || "$VENV_PIP" install -e .
-fi
+# Sync Python dependencies from uv.lock (idempotent — no-op if already synced)
+echo "Syncing Python dependencies..."
+uv sync
 
 # Copy env template without clobbering
 if [ -f ".env.example" ]; then
   [ -f ".env.local" ] || cp -- .env.example .env.local
-fi
-
-# Set DBT_PROFILES_DIR so dbt uses repo-local profiles.yml
-ACTIVATE="$VENV_DIR/bin/activate"
-PROFILE_MARKER="# DBT_PROFILES_DIR"
-if [ -f "$ACTIVATE" ] && ! grep -qF "$PROFILE_MARKER" "$ACTIVATE" 2>/dev/null; then
-  REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-  echo "" >> "$ACTIVATE"
-  echo "$PROFILE_MARKER" >> "$ACTIVATE"
-  echo "export DBT_PROFILES_DIR='$REPO_ROOT'" >> "$ACTIVATE"
 fi
 
 echo "=== .agents/setup complete: $(date) ==="

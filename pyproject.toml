@@ -1,0 +1,18 @@
+[project]
+name = "delta-analytics"
+version = "0.1.0"
+description = "Delta Lake analytics engineering template with dbt + Spark"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "dbt-core>=1.11,<1.12",
+    "dbt-spark[pyhive]>=1.11,<1.12",
+]
+
+[dependency-groups]
+dev = [
+    "sqlfluff>=4.2,<5",
+]
+
+[tool.sqlfluff]
+# Config lives in .sqlfluff — this section just documents the dialect
