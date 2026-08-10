@@ -1,15 +1,16 @@
 # Delta Analytics Engineering Template
 
-Delta Lake analytics stack for analytics engineer take-home tests. Spark + Delta + MinIO + dbt, with UV for Python dependency management and sqlfluff for SQL linting.
+Delta Lake analytics stack for analytics engineer take-home tests. Spark + Delta + Unity Catalog + dbt, with UV for Python dependency management and sqlfluff for SQL linting.
 
 ## Stack
 
 | Component | Purpose |
 |-----------|---------|
 | Spark 4.1 + Delta 4.1 | SQL engine + table format |
-| MinIO | S3-compatible object storage |
+| Unity Catalog OSS | 3-level namespace catalog (Databricks-style governance) |
 | Spark Thrift Server | JDBC endpoint for dbt-spark |
 | dbt-spark | Transformations (Delta format, merge strategy) |
+| MinIO (optional) | S3-compatible object storage for raw data |
 | UV | Python dependency management |
 | sqlfluff | SQL linter (sparksql dialect, dbt-aware) |
 | just | CLI command runner |
@@ -38,16 +39,21 @@ just setup
 ```bash
 cp .env.example .env.local
 just up
-# or with Unity Catalog: just up-uc
 ```
 
-Spark Thrift Server is ready when the `spark` container healthcheck passes (~60s on first run — Maven downloads Delta jars).
+Unity Catalog starts first, then `uc-init` bootstraps the `main` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~60s on first run — Maven downloads Delta + UC jars).
+
+To also start MinIO for raw data landing:
+
+```bash
+just up-minio
+```
 
 ### 4. Run dbt
 
 ```bash
 just debug     # verify Thrift connection
-just run       # build models
+just run       # build models into main.analytics
 just test      # run tests
 just docs      # generate + serve docs
 ```
@@ -72,9 +78,10 @@ Run `just` to see all recipes:
 | Command | Description |
 |---------|-------------|
 | `just setup` | Install Python deps via UV |
-| `just up` | Start Docker stack (Spark + MinIO) |
-| `just up-uc` | Start with Unity Catalog |
+| `just up` | Start Docker stack (Unity Catalog + Spark) |
+| `just up-minio` | Start with optional MinIO storage |
 | `just down` | Stop Docker stack |
+| `just uc-bootstrap` | Re-run UC catalog/schema setup |
 | `just debug` | Check dbt Thrift connection |
 | `just run` | Run dbt models |
 | `just test` | Run dbt tests |
@@ -87,21 +94,34 @@ Run `just` to see all recipes:
 ## Architecture
 
 ```
-dbt-spark  --thrift-->  Spark Thrift Server  --S3A-->  MinIO
-                              |
-                        Delta Lake format
-                              |
-                     Unity Catalog (optional)
+dbt-spark  --thrift-->  Spark Thrift Server  --UCSingleCatalog-->  Unity Catalog
+                              |                                        |
+                        Delta Lake format                         main.catalog
+                              |                                        |
+                     /opt/uc-storage (shared volume)           main.analytics
+                                                                     main.raw
 ```
 
-### Delta session catalog
+Optional MinIO for raw data landing:
 
-Three configs in `spark/conf/spark-defaults.conf` make Delta the session catalog — unqualified table names use Delta format, same as Databricks:
+```
+Spark  --S3A-->  MinIO (s3a://delta-warehouse/)
+```
+
+### Unity Catalog integration
+
+Spark uses `UCSingleCatalog` as the `main` catalog — unqualified table names resolve to `main.analytics.*`, same as Databricks:
 
 ```properties
+# spark/conf/spark-defaults.conf
 spark.sql.extensions             io.delta.sql.DeltaSparkSessionExtension
 spark.sql.catalog.spark_catalog  org.apache.spark.sql.delta.catalog.DeltaCatalog
+spark.sql.catalog.main           io.unitycatalog.spark.UCSingleCatalog
+spark.sql.catalog.main.uri       http://unity-catalog:8080
+spark.sql.defaultCatalog         main
 ```
+
+`spark_catalog` (DeltaCatalog) remains available for path-based Delta tables.
 
 ### dbt incremental models
 
@@ -114,13 +134,11 @@ Models use `file_format='delta'` and `incremental_strategy='merge'` — these ca
 
 ### SQL linting
 
-sqlfluff is configured with:
+sqlfluff is configured in `pyproject.toml` with:
 - Dialect: `sparksql`
 - Templater: `jinja` with dbt builtins (`ref`, `source`, `config`, `var`, `is_incremental`)
 - Max line length: 120
 - Keywords/functions: uppercase, identifiers: lowercase
-
-Config: `.sqlfluff`
 
 ### Prod migration
 
@@ -142,30 +160,35 @@ Install: `uv add dbt-databricks`
 | Component | Version |
 |-----------|---------|
 | Python | 3.11 |
-| Spark | 4.1.0 |
+| Spark | 4.1.1 (delta-docker image) |
 | Delta | 4.1.0 |
+| Unity Catalog | 0.4.0 |
+| UC Spark connector | unitycatalog-spark_2.13:0.4.0 |
 | dbt-core | 1.11.x |
 | dbt-spark | 1.11.x |
 | sqlfluff | 4.x |
 
-Delta ↔ Spark pinning is strict. Check https://docs.delta.io/releases before upgrading.
+Delta ↔ Spark ↔ UC connector pinning is strict. Check these before upgrading:
+- https://docs.delta.io/releases
+- https://github.com/unitycatalog/unitycatalog/releases
 
 ## Project structure
 
 ```
 .
 ├── justfile              # CLI commands (just <recipe>)
-├── pyproject.toml        # Python deps (uv sync)
+├── pyproject.toml        # Python deps + sqlfluff config (uv sync)
 ├── uv.lock               # Locked dependency versions
 ├── .python-version       # Python 3.11
-├── .sqlfluff             # SQL linter config
 ├── .sqlfluffignore       # Lint exclusions
 ├── dbt_project.yml       # dbt project config
 ├── profiles.yml          # dbt connection profiles
-├── docker-compose.yml    # Spark + MinIO + UC (optional)
+├── docker-compose.yml    # Unity Catalog + Spark + MinIO (optional)
 ├── spark/
-│   ├── conf/spark-defaults.conf  # Delta + S3A config
+│   ├── conf/spark-defaults.conf  # Delta + UC + S3A config
 │   └── entrypoint.sh             # Thrift Server startup
+├── uc/
+│   └── conf/server.properties    # UC server config
 ├── models/
 │   └── staging/
 │       ├── _sources.yml          # Source definitions
