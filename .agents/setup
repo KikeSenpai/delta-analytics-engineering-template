@@ -39,4 +39,14 @@ if [ -f ".env.example" ]; then
   [ -f ".env.local" ] || cp -- .env.example .env.local
 fi
 
+# Set DBT_PROFILES_DIR so dbt uses repo-local profiles.yml
+ACTIVATE="$VENV_DIR/bin/activate"
+PROFILE_MARKER="# DBT_PROFILES_DIR"
+if [ -f "$ACTIVATE" ] && ! grep -qF "$PROFILE_MARKER" "$ACTIVATE" 2>/dev/null; then
+  REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  echo "" >> "$ACTIVATE"
+  echo "$PROFILE_MARKER" >> "$ACTIVATE"
+  echo "export DBT_PROFILES_DIR='$REPO_ROOT'" >> "$ACTIVATE"
+fi
+
 echo "=== .agents/setup complete: $(date) ==="

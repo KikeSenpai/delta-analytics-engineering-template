@@ -1,0 +1,8 @@
+# dbt — connects to Spark Thrift Server via PyHive
+dbt-core>=1.11,<1.12
+dbt-spark[pyhive]>=1.11,<1.12
+
+# Optional: PySpark + Delta for local Spark scripts
+# Spark itself runs in Docker; only needed for standalone Python jobs
+delta-spark==4.1.0
+pyspark==4.1.0

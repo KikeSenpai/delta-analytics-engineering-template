@@ -1,0 +1,61 @@
+# Delta analytics stack: Spark + Delta Lake + MinIO (S3-compatible storage)
+# Unity Catalog is optional — enable with: docker compose --profile uc up
+
+services:
+  spark:
+    image: deltaio/delta-docker:latest
+    ports:
+      - "10000:10000"  # Spark Thrift Server (dbt-spark connects here)
+      - "4040:4040"    # Spark UI
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-admin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-password}
+      DELTA_SPARK_VERSION: "4.1.0"
+    volumes:
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./spark/entrypoint.sh:/opt/spark/entrypoint.sh:ro
+    entrypoint: ["bash", "/opt/spark/entrypoint.sh"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10000' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # MinIO console
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-admin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-password}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${AWS_ACCESS_KEY_ID:-admin} ${AWS_SECRET_ACCESS_KEY:-password} &&
+        mc mb local/delta-warehouse --ignore-existing
+      "
+
+  # Unity Catalog — optional governance layer
+  # Enable with: docker compose --profile uc up
+  # Requires UC Spark connector for Spark integration (see README)
+  unity-catalog:
+    profiles: ["uc"]
+    image: unitycatalog/unitycatalog:latest
+    ports:
+      - "8081:8080"  # UC REST API

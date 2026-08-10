@@ -1,0 +1,13 @@
+name: 'delta_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'delta_analytics'
+
+models:
+  delta_analytics:
+    # Delta format for all models — Databricks-style managed tables
+    +file_format: delta
+    +materialized: table
+    staging:
+      +materialized: view
