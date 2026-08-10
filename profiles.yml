@@ -5,6 +5,7 @@ delta_analytics:
       method: thrift
       host: "{{ env_var('SPARK_THRIFT_HOST', 'localhost') }}"
       port: "{{ env_var('SPARK_THRIFT_PORT', 10000) | int }}"
+      catalog: main
       schema: analytics
       threads: 4
 
