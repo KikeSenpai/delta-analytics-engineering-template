@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== .agents/setup: $(date) ==="
+
+# Python toolchain — already in base orb, verify presence
+command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found"; exit 1; }
+command -v pip3 >/dev/null 2>&1 || { echo "ERROR: pip3 not found"; exit 1; }
+
+PYTHON="python3"
+PIP="pip3"
+
+# Create venv if absent
+VENV_DIR=".venv"
+if [ ! -d "$VENV_DIR" ]; then
+  echo "Creating virtual environment..."
+  "$PYTHON" -m venv "$VENV_DIR"
+fi
+
+# Use venv pip for installs
+VENV_PIP="$VENV_DIR/bin/pip"
+
+# Upgrade pip quietly
+"$VENV_PIP" install --upgrade pip --quiet
+
+# Install dependencies if lockfile exists
+if [ -f "requirements.txt" ]; then
+  echo "Installing from requirements.txt..."
+  "$VENV_PIP" install -r requirements.txt
+fi
+
+if [ -f "pyproject.toml" ]; then
+  echo "Installing from pyproject.toml..."
+  "$VENV_PIP" install -e ".[dev]" 2>/dev/null || "$VENV_PIP" install -e .
+fi
+
+# Copy env template without clobbering
+if [ -f ".env.example" ]; then
+  [ -f ".env.local" ] || cp -- .env.example .env.local
+fi
+
+echo "=== .agents/setup complete: $(date) ==="

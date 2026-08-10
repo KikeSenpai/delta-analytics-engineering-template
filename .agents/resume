@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== .agents/resume: $(date) ==="
+
+# Verify venv still intact
+if [ -d ".venv" ]; then
+  echo "venv present"
+else
+  echo "venv missing — rerun .agents/setup"
+fi
+
+echo "=== .agents/resume complete: $(date) ==="
