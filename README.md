@@ -93,19 +93,32 @@ Run `just` to see all recipes:
 
 ## Architecture
 
-```
-dbt-spark  --thrift-->  Spark Thrift Server  --UCSingleCatalog-->  Unity Catalog
-                              |                                        |
-                        Delta Lake format                         main.catalog
-                              |                                        |
-                     /opt/uc-storage (shared volume)           main.analytics
-                                                                     main.raw
+```mermaid
+graph LR
+    dbt["dbt-spark"]
+    spark["Spark Thrift Server"]
+    uc["Unity Catalog"]
+    storage["/opt/uc-storage\n(shared volume)"]
+
+    dbt -- "Thrift JDBC" --> spark
+    spark -- "UCSingleCatalog" --> uc
+    spark -- "Delta Lake format" --> storage
+
+    subgraph "main catalog"
+        main_analytics["main.analytics"]
+        main_raw["main.raw"]
+    end
+    uc --- main_analytics
+    uc --- main_raw
 ```
 
 Optional MinIO for raw data landing:
 
-```
-Spark  --S3A-->  MinIO (s3a://delta-warehouse/)
+```mermaid
+graph LR
+    spark["Spark"]
+    minio["MinIO\n(s3a://delta-warehouse/)"]
+    spark -- "S3A" --> minio
 ```
 
 ### Unity Catalog integration
