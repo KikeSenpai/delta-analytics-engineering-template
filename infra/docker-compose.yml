@@ -6,58 +6,60 @@
 
 services:
   unity-catalog:
-    image: unitycatalog/unitycatalog:0.4.0
+    image: unitycatalog/unitycatalog:v0.5.0
     ports:
       - "8081:8080"  # UC REST API
     volumes:
-      - ./infra/uc/conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
+      - ./uc/conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
       - uc-db:/home/unitycatalog/etc/db
       - uc-storage:/opt/uc-storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/api/2.1/unity-catalog/catalogs || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/2.1/unity-catalog/catalogs > /dev/null 2>&1 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 15s
 
   uc-init:
-    image: unitycatalog/unitycatalog:0.4.0
+    image: unitycatalog/unitycatalog:v0.5.0
     depends_on:
       unity-catalog:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "bin/uc --server http://unity-catalog:8080 catalog create --name main --storage_root /opt/uc-storage --comment 'Main analytics catalog' 2>/dev/null || true &&
+       bin/uc --server http://unity-catalog:8080 schema create --catalog main --name default --comment 'Default schema (Spark session default)' 2>/dev/null || true &&
        bin/uc --server http://unity-catalog:8080 schema create --catalog main --name analytics --comment 'dbt analytics models' 2>/dev/null || true &&
        bin/uc --server http://unity-catalog:8080 schema create --catalog main --name raw --comment 'Raw source data' 2>/dev/null || true &&
-       echo 'Unity Catalog bootstrapped: main.analytics, main.raw'"
+       echo 'Unity Catalog bootstrapped: main.default, main.analytics, main.raw'"
 
   spark:
     image: deltaio/delta-docker:latest
+    user: root          # entrypoint copies jars into $SPARK_HOME/jars — needs write access
     ports:
       - "10000:10000"  # Spark Thrift Server (dbt-spark connects here)
       - "4040:4040"    # Spark UI
     environment:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-admin}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-password}
-      DELTA_SPARK_VERSION: "4.1.0"
-      UC_VERSION: "0.4.0"
+      DELTA_SPARK_VERSION: "4.3.0"
+      UC_VERSION: "0.5.0"
     volumes:
-      - ./infra/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-      - ./infra/spark/entrypoint.sh:/opt/spark/entrypoint.sh:ro
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./spark/entrypoint.sh:/opt/spark/entrypoint.sh:ro
       - uc-storage:/opt/uc-storage
     entrypoint: ["bash", "/opt/spark/entrypoint.sh"]
     depends_on:
       unity-catalog:
         condition: service_healthy
       uc-init:
-        condition: service_completed
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10000' 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 120s
 
   # MinIO — optional S3-compatible storage for raw data landing
   # Enable with: docker compose --profile minio up
