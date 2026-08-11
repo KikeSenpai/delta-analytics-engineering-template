@@ -194,18 +194,22 @@ Delta ↔ Spark ↔ UC connector pinning is strict. Check these before upgrading
 ├── uv.lock               # Locked dependency versions
 ├── .python-version       # Python 3.11
 ├── .sqlfluffignore       # Lint exclusions
+│
 ├── dbt_project.yml       # dbt project config
 ├── profiles.yml          # dbt connection profiles
-├── docker-compose.yml    # Unity Catalog + Spark + MinIO (optional)
-├── spark/
-│   ├── conf/spark-defaults.conf  # Delta + UC + S3A config
-│   └── entrypoint.sh             # Thrift Server startup
-├── uc/
-│   └── conf/server.properties    # UC server config
 ├── models/
 │   └── staging/
 │       ├── _sources.yml          # Source definitions
 │       └── stg_orders.sql        # Sample Delta incremental model
+│
+├── infra/                        # Infrastructure config (Docker)
+│   ├── docker-compose.yml        # Unity Catalog + Spark + MinIO (optional)
+│   ├── spark/
+│   │   ├── conf/spark-defaults.conf  # Delta + UC + S3A config
+│   │   └── entrypoint.sh             # Thrift Server startup
+│   └── uc/
+│       └── conf/server.properties    # UC server config
+│
 ├── .agents/
 │   ├── setup            # Orb setup (uv sync + tools)
 │   └── resume           # Orb resume (fast check)

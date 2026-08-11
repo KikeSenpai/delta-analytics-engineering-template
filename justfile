@@ -8,19 +8,19 @@ setup:
 
 # Start the full Docker stack (Unity Catalog + Spark)
 up:
-    docker compose up -d
+    docker compose -f infra/docker-compose.yml up -d
 
 # Start with optional MinIO storage for raw data
 up-minio:
-    docker compose --profile minio up -d
+    docker compose -f infra/docker-compose.yml --profile minio up -d
 
 # Stop the Docker stack
 down:
-    docker compose down
+    docker compose -f infra/docker-compose.yml down
 
 # Bootstrap Unity Catalog catalog + schemas (run once after up)
 uc-bootstrap:
-    docker compose run --rm uc-init
+    docker compose -f infra/docker-compose.yml run --rm uc-init
 
 # Check dbt can connect to Spark Thrift Server
 debug:
