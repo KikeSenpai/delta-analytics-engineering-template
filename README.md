@@ -6,7 +6,7 @@ Delta Lake analytics stack for analytics engineer take-home tests. Spark + Delta
 
 | Component | Purpose |
 |-----------|---------|
-| Spark 4.1 + Delta 4.1 | SQL engine + table format |
+| Spark 4.1 + Delta 4.3 | SQL engine + table format |
 | Unity Catalog OSS | 3-level namespace catalog (Databricks-style governance) |
 | Spark Thrift Server | JDBC endpoint for dbt-spark |
 | dbt-spark | Transformations (Delta format, merge strategy) |
@@ -38,10 +38,10 @@ just setup
 
 ```bash
 cp .env.example .env.local
-just up
+just infra-up
 ```
 
-Unity Catalog starts first, then `uc-init` bootstraps the `main` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~60s on first run — Maven downloads Delta + UC jars).
+Unity Catalog starts first, then `uc-init` bootstraps the `main` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~120s on first run — Maven downloads Delta + UC jars).
 
 To also start MinIO for raw data landing:
 
@@ -52,6 +52,7 @@ just up-minio
 ### 4. Run dbt
 
 ```bash
+just seed      # load fixture data into main.raw
 just debug     # verify Thrift connection
 just run       # build models into main.analytics
 just test      # run tests
@@ -65,7 +66,13 @@ just lint      # check SQL style
 just fix       # auto-fix violations
 ```
 
-### 6. CI check (no Docker needed)
+### 6. Full verification (requires Docker)
+
+```bash
+just verify    # static checks + compose validation + seed/run/test
+```
+
+### 7. Static CI check (no Docker needed)
 
 ```bash
 just ci        # dbt parse + sqlfluff lint
@@ -78,18 +85,22 @@ Run `just` to see all recipes:
 | Command | Description |
 |---------|-------------|
 | `just setup` | Install Python deps via UV |
-| `just up` | Start Docker stack (Unity Catalog + Spark) |
-| `just up-minio` | Start with optional MinIO storage |
-| `just down` | Stop Docker stack |
-| `just uc-bootstrap` | Re-run UC catalog/schema setup |
-| `just debug` | Check dbt Thrift connection |
-| `just run` | Run dbt models |
-| `just test` | Run dbt tests |
-| `just docs` | Generate + serve dbt docs |
-| `just lint` | Lint SQL with sqlfluff |
-| `just fix` | Auto-fix SQL lint violations |
-| `just parse` | Parse dbt project (fast syntax check) |
-| `just ci` | Full CI check (parse + lint) |
+| `just infra-up` | Start Docker stack + wait for healthchecks |
+| `just up-minio` | Start with MinIO storage |
+| `just down` | Stop Docker stack (preserve volumes) |
+| `just clean` | Stop Docker stack + delete volumes |
+| `just compose-check` | Validate compose syntax (no Docker needed) |
+| `just smoke` | UC API + dbt connection check |
+| `just seed` | Load fixture data into `main.raw` |
+| `just debug` | Verify Thrift connection |
+| `just run` | Build models into `main.analytics` |
+| `just test` | Run data tests |
+| `just docs` | Generate + serve docs |
+| `just lint` | Check SQL style |
+| `just fix` | Auto-fix SQL violations |
+| `just parse` | Parse dbt project (syntax check) |
+| `just ci` | Static CI: parse + lint (no Docker) |
+| `just verify` | Full end-to-end: static + compose + runtime |
 
 ## Architecture
 
@@ -174,9 +185,9 @@ Install: `uv add dbt-databricks`
 |-----------|---------|
 | Python | 3.11 |
 | Spark | 4.1.1 (delta-docker image) |
-| Delta | 4.1.0 |
-| Unity Catalog | 0.4.0 |
-| UC Spark connector | unitycatalog-spark_2.13:0.4.0 |
+| Delta | 4.3.0 |
+| Unity Catalog | 0.5.0 |
+| UC Spark connector | unitycatalog-spark_4.1_2.13:0.5.0 |
 | dbt-core | 1.11.x |
 | dbt-spark | 1.11.x |
 | sqlfluff | 4.x |
@@ -194,6 +205,7 @@ Delta ↔ Spark ↔ UC connector pinning is strict. Check these before upgrading
 ├── uv.lock               # Locked dependency versions
 ├── .python-version       # Python 3.11
 ├── .sqlfluffignore       # Lint exclusions
+├── AGENTS.md             # AI agent guidance (testing workflow)
 │
 ├── dbt_project.yml       # dbt project config
 ├── profiles.yml          # dbt connection profiles
@@ -201,12 +213,16 @@ Delta ↔ Spark ↔ UC connector pinning is strict. Check these before upgrading
 │   └── staging/
 │       ├── _sources.yml          # Source definitions
 │       └── stg_orders.sql        # Sample Delta incremental model
+├── seeds/
+│   └── orders.csv                # Fixture source data (loaded into main.raw)
+├── macros/
+│   └── generate_schema_name.sql  # Custom schema naming (no concatenation)
 │
 ├── infra/                        # Infrastructure config (Docker)
 │   ├── docker-compose.yml        # Unity Catalog + Spark + MinIO (optional)
 │   ├── spark/
 │   │   ├── conf/spark-defaults.conf  # Delta + UC + S3A config
-│   │   └── entrypoint.sh             # Thrift Server startup
+│   │   └── entrypoint.sh             # Thrift Server startup (jar resolution)
 │   └── uc/
 │       └── conf/server.properties    # UC server config
 │
