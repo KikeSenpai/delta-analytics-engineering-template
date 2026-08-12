@@ -147,6 +147,48 @@ spark.sql.defaultCatalog         prod
 
 `spark_catalog` (DeltaCatalog) remains available for path-based Delta tables.
 
+#### Creating additional catalogs
+
+Spark SQL does not support `CREATE CATALOG` — the parser rejects it. Catalogs must be created via the UC CLI or REST API. Two steps are required:
+
+**Step 1 — Create the catalog in Unity Catalog:**
+
+```bash
+# Run against a running stack (just infra-up first)
+docker exec infra-unity-catalog-1 \
+  bin/uc --server http://localhost:8080 \
+  catalog create --name staging \
+  --storage_root /opt/uc-storage \
+  --comment 'Staging catalog for dev work'
+
+# Verify
+docker exec infra-unity-catalog-1 \
+  bin/uc --server http://localhost:8080 catalog list
+```
+
+**Step 2 — Register the catalog in Spark so it is queryable:**
+
+Add these lines to `infra/spark/conf/spark-defaults.conf`, then restart the stack (`just clean && just infra-up`):
+
+```properties
+spark.sql.catalog.staging         io.unitycatalog.spark.UCSingleCatalog
+spark.sql.catalog.staging.uri     http://unity-catalog:8080
+spark.sql.catalog.staging.token   ""
+```
+
+After restart, Spark sees both catalogs:
+
+```sql
+SHOW CATALOGS;
+-- prod, spark_catalog, staging
+
+-- Schemas can be created from Spark SQL
+CREATE SCHEMA staging.raw;
+CREATE SCHEMA staging.analytics;
+```
+
+A catalog groups schemas; a schema groups tables. A new catalog needs a matching `spark.sql.catalog.<name>` entry in `spark-defaults.conf` to be visible to Spark.
+
 ### dbt incremental models
 
 Models use `file_format='delta'` and `incremental_strategy='merge'` — these carry over verbatim when switching to `dbt-databricks` for production.
