@@ -27,11 +27,11 @@ services:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      "bin/uc --server http://unity-catalog:8080 catalog create --name main --storage_root /opt/uc-storage --comment 'Main analytics catalog' 2>/dev/null || true &&
-       bin/uc --server http://unity-catalog:8080 schema create --catalog main --name default --comment 'Default schema (Spark session default)' 2>/dev/null || true &&
-       bin/uc --server http://unity-catalog:8080 schema create --catalog main --name analytics --comment 'dbt analytics models' 2>/dev/null || true &&
-       bin/uc --server http://unity-catalog:8080 schema create --catalog main --name raw --comment 'Raw source data' 2>/dev/null || true &&
-       echo 'Unity Catalog bootstrapped: main.default, main.analytics, main.raw'"
+      "bin/uc --server http://unity-catalog:8080 catalog create --name prod --storage_root /opt/uc-storage --comment 'Main analytics catalog' 2>/dev/null || true &&
+       bin/uc --server http://unity-catalog:8080 schema create --catalog prod --name default --comment 'Default schema (Spark session default)' 2>/dev/null || true &&
+       bin/uc --server http://unity-catalog:8080 schema create --catalog prod --name analytics --comment 'dbt analytics models' 2>/dev/null || true &&
+       bin/uc --server http://unity-catalog:8080 schema create --catalog prod --name raw --comment 'Raw source data' 2>/dev/null || true &&
+       echo 'Unity Catalog bootstrapped: prod.default, prod.analytics, prod.raw'"
 
   spark:
     image: deltaio/delta-docker:latest

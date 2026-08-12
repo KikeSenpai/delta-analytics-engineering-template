@@ -41,7 +41,7 @@ cp .env.example .env.local
 just infra-up
 ```
 
-Unity Catalog starts first, then `uc-init` bootstraps the `main` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~120s on first run — Maven downloads Delta + UC jars).
+Unity Catalog starts first, then `uc-init` bootstraps the `prod` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~120s on first run — Maven downloads Delta + UC jars).
 
 To also start MinIO for raw data landing:
 
@@ -52,9 +52,9 @@ just up-minio
 ### 4. Run dbt
 
 ```bash
-just seed      # load fixture data into main.raw
+just seed      # load fixture data into prod.raw
 just debug     # verify Thrift connection
-just run       # build models into main.analytics
+just run       # build models into prod.analytics
 just test      # run tests
 just docs      # generate + serve docs
 ```
@@ -91,9 +91,9 @@ Run `just` to see all recipes:
 | `just clean` | Stop Docker stack + delete volumes |
 | `just compose-check` | Validate compose syntax (no Docker needed) |
 | `just smoke` | UC API + dbt connection check |
-| `just seed` | Load fixture data into `main.raw` |
+| `just seed` | Load fixture data into `prod.raw` |
 | `just debug` | Verify Thrift connection |
-| `just run` | Build models into `main.analytics` |
+| `just run` | Build models into `prod.analytics` |
 | `just test` | Run data tests |
 | `just docs` | Generate + serve docs |
 | `just lint` | Check SQL style |
@@ -115,12 +115,12 @@ graph LR
     spark -- "UCSingleCatalog" --> uc
     spark -- "Delta Lake format" --> storage
 
-    subgraph "main catalog"
-        main_analytics["main.analytics"]
-        main_raw["main.raw"]
+    subgraph "prod catalog"
+        prod_analytics["prod.analytics"]
+        prod_raw["prod.raw"]
     end
-    uc --- main_analytics
-    uc --- main_raw
+    uc --- prod_analytics
+    uc --- prod_raw
 ```
 
 Optional MinIO for raw data landing:
@@ -134,15 +134,15 @@ graph LR
 
 ### Unity Catalog integration
 
-Spark uses `UCSingleCatalog` as the `main` catalog — unqualified table names resolve to `main.analytics.*`, same as Databricks:
+Spark uses `UCSingleCatalog` as the `prod` catalog — unqualified table names resolve to `prod.analytics.*`, same as Databricks:
 
 ```properties
 # spark/conf/spark-defaults.conf
 spark.sql.extensions             io.delta.sql.DeltaSparkSessionExtension
 spark.sql.catalog.spark_catalog  org.apache.spark.sql.delta.catalog.DeltaCatalog
-spark.sql.catalog.main           io.unitycatalog.spark.UCSingleCatalog
-spark.sql.catalog.main.uri       http://unity-catalog:8080
-spark.sql.defaultCatalog         main
+spark.sql.catalog.prod          io.unitycatalog.spark.UCSingleCatalog
+spark.sql.catalog.prod.uri      http://unity-catalog:8080
+spark.sql.defaultCatalog         prod
 ```
 
 `spark_catalog` (DeltaCatalog) remains available for path-based Delta tables.
@@ -173,7 +173,7 @@ prod:
   type: databricks
   host: <workspace>.cloud.databricks.com
   http_path: /sql/1.0/warehouses/<id>
-  catalog: main
+  catalog: prod
   schema: analytics
 ```
 
@@ -214,7 +214,7 @@ Delta ↔ Spark ↔ UC connector pinning is strict. Check these before upgrading
 │       ├── _sources.yml          # Source definitions
 │       └── stg_orders.sql        # Sample Delta incremental model
 ├── seeds/
-│   └── orders.csv                # Fixture source data (loaded into main.raw)
+│   └── orders.csv                # Fixture source data (loaded into prod.raw)
 ├── macros/
 │   └── generate_schema_name.sql  # Custom schema naming (no concatenation)
 │

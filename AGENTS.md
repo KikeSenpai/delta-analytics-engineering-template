@@ -66,7 +66,7 @@ Run `just verify` — the canonical end-to-end check. It:
 | `just infra-status` | Check container health |
 | `just infra-logs` | Tail service logs |
 | `just smoke` | UC API + dbt connection check |
-| `just seed` | Load fixture data into `main.raw` |
+| `just seed` | Load fixture data into `prod.raw` |
 | `just run` | Build dbt models |
 | `just test` | Run dbt data tests |
 | `just debug` | dbt connection test |
@@ -82,5 +82,5 @@ Run `just verify` — the canonical end-to-end check. It:
 - Models use `file_format='delta'` and `incremental_strategy='merge'`.
 - Seeds are fixture data — load with `dbt seed` before `dbt run`.
 - `generate_schema_name` macro uses custom schema names directly (no concatenation).
-- UC bootstrap creates `main.default`, `main.analytics`, `main.raw` schemas.
+- UC bootstrap creates `prod.default`, `prod.analytics`, `prod.raw` schemas.
 - Spark entrypoint resolves Maven jars into `$SPARK_HOME/jars/` (workaround for Spark 4.x ArtifactManager classloader isolation).
