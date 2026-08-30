@@ -2,6 +2,8 @@
 
 Delta Lake analytics stack for analytics engineer take-home tests. Spark + Delta + Unity Catalog + dbt, with UV for Python dependency management and sqlfluff for SQL linting.
 
+Take-home solution design, source profiling, funnel mapping, and limitations: [ANALYSIS.md](ANALYSIS.md).
+
 ## Stack
 
 | Component | Purpose |

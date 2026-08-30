@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: int_pipedrive__deal_episodes
+    description: >
+      Deal lifecycle identities reconstructed from add_time events. Five reused deal_ids produce 2,000 distinct episodes.
+    columns:
+      - name: deal_episode_key
+        data_tests: [not_null, unique]
+      - name: deal_id
+        data_tests: [not_null]
+      - name: created_at
+        data_tests: [not_null]
+      - name: lifecycle_time_signature
+        data_tests: [not_null]
+
+  - name: int_pipedrive__funnel_step_events
+    description: >
+      First observed event per reconstructed entity and funnel step. Stage changes use changed_at; completed sales calls
+      use due_at because the extract has no completion timestamp.
+    columns:
+      - name: event_key
+        data_tests: [not_null, unique]
+      - name: funnel_entity_key
+        data_tests: [not_null]
+      - name: event_at
+        data_tests: [not_null]
+      - name: kpi_name
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Lead Generation
+                  - Qualified Lead
+                  - Sales Call 1
+                  - Needs Assessment
+                  - Sales Call 2
+                  - Proposal/Quote Preparation
+                  - Negotiation
+                  - Closing
+                  - Implementation/Onboarding
+                  - Follow-up/Customer Success
+                  - Renewal/Expansion
+      - name: funnel_step
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Step 1
+                  - Step 2
+                  - Step 2.1
+                  - Step 3
+                  - Step 3.1
+                  - Step 4
+                  - Step 5
+                  - Step 6
+                  - Step 7
+                  - Step 8
+                  - Step 9
+      - name: event_source
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [deal_stage, completed_activity]
