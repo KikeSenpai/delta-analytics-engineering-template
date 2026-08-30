@@ -165,13 +165,13 @@ orb-status:
     bash {{ORB_DIR}}/status.sh
 
 # Run ad-hoc Spark SQL against the Orb-native stack (e.g. just orb-query "SELECT 1")
-# Backticks in SQL (e.g. \`order\`) are safe — single-quoted in the recipe.
+# Shell-quote SQL so string literals and backticks reach Beeline unchanged.
 orb-query sql:
     #!/usr/bin/env bash
     set -euo pipefail
     export JAVA_HOME="$HOME/.local/share/java-17"
     export PATH="$JAVA_HOME/bin:$PATH"
-    "$HOME/.local/share/spark-4.1.1/bin/beeline" -u "jdbc:hive2://127.0.0.1:10000" -e '{{sql}}'
+    "$HOME/.local/share/spark-4.1.1/bin/beeline" -u "jdbc:hive2://127.0.0.1:10000" -e {{quote(sql)}}
 
 # Load CSV files from data/ into prod.raw (Orb-native, no Docker)
 orb-load-raw:

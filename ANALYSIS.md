@@ -58,6 +58,9 @@ those events onto a complete month-step spine.
 Run:
 
 ```bash
+just verify-orb  # full Docker-free validation in an Amp Orb
+
+# Or use the Docker workflow:
 just infra-up
 just load-raw
 just run

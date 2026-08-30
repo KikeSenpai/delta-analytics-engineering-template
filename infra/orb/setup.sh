@@ -54,8 +54,10 @@ if [ ! -f "$UC_DIR/server/target/unitycatalog-server-$UC_VERSION.jar" ]; then
   git clone --depth 1 --branch "v$UC_VERSION" \
     https://github.com/unitycatalog/unitycatalog.git /tmp/uc-build
   (cd /tmp/uc-build && build/sbt -info clean package)
-  cp -r /tmp/uc-build "$UC_DIR"
-  rm -rf /tmp/uc-build
+  # start.sh may have created UC_DIR/etc before setup; replace it rather than
+  # nesting the build under UC_DIR/uc-build.
+  rm -rf "$UC_DIR"
+  mv /tmp/uc-build "$UC_DIR"
   # Fix classpath paths from /tmp/uc-build to permanent location
   find "$UC_DIR" -name "classpath" -exec sed -i "s|/tmp/uc-build|$UC_DIR|g" {} \;
 else
