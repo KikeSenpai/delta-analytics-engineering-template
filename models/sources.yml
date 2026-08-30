@@ -1,0 +1,57 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: Raw Pipedrive extracts loaded from the supplied CSV files by `just load-raw`.
+    tables:
+      - name: users
+        description: Pipedrive users referenced as deal and activity owners.
+        columns:
+          - name: id
+            data_tests: [not_null, unique]
+          - name: modified
+            data_tests: [not_null]
+      - name: stages
+        description: Ordered deal pipeline stages.
+        columns:
+          - name: stage_id
+            data_tests: [not_null, unique]
+          - name: stage_name
+            data_tests: [not_null, unique]
+      - name: fields
+        description: Metadata for fields represented in deal_changes.
+        columns:
+          - name: ID
+            data_tests: [not_null, unique]
+          - name: FIELD_KEY
+            data_tests: [not_null, unique]
+      - name: deal_changes
+        description: Deal field-change log; add_time records identify deal lifecycle episodes.
+        columns:
+          - name: deal_id
+            data_tests: [not_null]
+          - name: change_time
+            data_tests: [not_null]
+          - name: changed_field_key
+            data_tests: [not_null]
+          - name: new_value
+            data_tests: [not_null]
+      - name: activity
+        description: Scheduled Pipedrive activities and completion state.
+        columns:
+          - name: activity_id
+            data_tests: [not_null]
+          - name: deal_id
+            data_tests: [not_null]
+          - name: type
+            data_tests: [not_null]
+          - name: due_to
+            data_tests: [not_null]
+      - name: activity_types
+        description: Activity type lookup, including the two supplied sales-call types.
+        columns:
+          - name: id
+            data_tests: [not_null, unique]
+          - name: type
+            data_tests: [not_null, unique]

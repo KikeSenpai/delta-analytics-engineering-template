@@ -2,6 +2,8 @@
 
 Delta Lake analytics stack for analytics engineer take-home tests, shaped like Databricks: object storage holds the tables, Unity Catalog governs them, Spark computes, dbt transforms. UV manages Python dependencies and sqlfluff lints SQL.
 
+Take-home solution design, source profiling, funnel mapping, and limitations: [ANALYSIS.md](ANALYSIS.md).
+
 ## Stack
 
 | Component | Role |

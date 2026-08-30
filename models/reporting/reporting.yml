@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: rep_sales_funnel_monthly
+    description: >
+      Monthly first-entry funnel counts. Complete month by step spine includes zero-count rows between the earliest and
+      latest observed mapped event.
+    columns:
+      - name: month
+        description: First calendar day of event month.
+        data_tests: [not_null]
+      - name: kpi_name
+        description: Canonical funnel KPI name.
+        data_tests: [not_null]
+      - name: funnel_step
+        description: Canonical display label, including intermediate call steps 2.1 and 3.1.
+        data_tests: [not_null]
+      - name: deals_count
+        description: Distinct reconstructed entities first observed at this step during month.
+        data_tests: [not_null]
