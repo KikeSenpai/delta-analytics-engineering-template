@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: mart_active_users
+    description: >-
+      Portfolio-style DAU/WAU/MAU and revenue by service period. An active user is a distinct customer with at least
+      one booked or finished seat order whose trip starts in the period. Week starts Monday. This measures travel
+      activity, not app engagement, because order-created and event timestamps are absent.
+    columns:
+      - name: period_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['day', 'week', 'month']
+      - name: period_start
+        data_tests: [not_null]
+  - name: mart_service_daily
+    description: >-
+      Daily regional service KPI mart; grain is service date, origin region and destination region. Includes trips
+      without orders, enabling supply and growth analysis.
+    columns:
+      - name: service_date
+        data_tests: [not_null]
+      - name: origin_region
+        data_tests: [not_null]
+      - name: destination_region
+        data_tests: [not_null]
+  - name: mart_route_performance
+    description: All-time city-pair supply, order, revenue and seat-utilization metrics; grain is directional route.
+  - name: mart_customer_segments
+    description: >-
+      Customer order economics by current group segment, group-match quality and descriptive order-price band.
+      Grain is customer segment, membership status and price band.
+  - name: mart_aircraft_performance
+    description: Aircraft model supply, order, revenue and seat-utilization metrics; grain is manufacturer/model.

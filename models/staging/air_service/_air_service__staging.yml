@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: stg_air_service__aeroplane_models
+    description: Clean aircraft-model specification snapshot; one row per manufacturer/model pair.
+    columns:
+      - name: airplane_model
+        data_tests: [not_null, unique]
+      - name: manufacturer
+        data_tests: [not_null]
+      - name: max_seats
+        data_tests: [not_null]
+  - name: stg_air_service__aeroplanes
+    description: Clean aeroplane snapshot; one row per aeroplane.
+    columns:
+      - name: aeroplane_id
+        data_tests: [not_null, unique]
+      - name: airplane_model
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_air_service__aeroplane_models')
+                field: airplane_model
+  - name: stg_air_service__customer_groups
+    description: Clean group snapshot; one row per known customer group.
+    columns:
+      - name: customer_group_id
+        data_tests: [not_null, unique]
+      - name: customer_group_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Company', 'Private Group', 'Organisation']
+  - name: stg_air_service__customers
+    description: >-
+      Clean customer snapshot; one row per customer. Seven supplied group IDs reference groups absent from the
+      group extract, so that relationship is monitored as a warning and exposed explicitly downstream.
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: customer_group_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_air_service__customer_groups')
+                field: customer_group_id
+              config:
+                severity: warn
+  - name: stg_air_service__orders
+    description: Clean order snapshot; one row per seat order.
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_air_service__customers')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_air_service__trips')
+                field: trip_id
+      - name: price_eur
+        data_tests: [not_null]
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['booked', 'finished', 'cancelled']
+  - name: stg_air_service__trips
+    description: >-
+      Clean trip snapshot; one row per trip. Timestamps are unzoned local values. Two end values sort before start
+      values because routes cross time zones; duration must not be calculated from them.
+    columns:
+      - name: trip_id
+        data_tests: [not_null, unique]
+      - name: aeroplane_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_air_service__aeroplanes')
+                field: aeroplane_id
+      - name: start_timestamp_local
+        data_tests: [not_null]
+      - name: end_timestamp_local
+        data_tests: [not_null]

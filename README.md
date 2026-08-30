@@ -2,6 +2,9 @@
 
 Delta Lake analytics stack for analytics engineer take-home tests, shaped like Databricks: object storage holds the tables, Unity Catalog governs them, Spark computes, dbt transforms. UV manages Python dependencies and sqlfluff lints SQL.
 
+The implemented Air Boltic model, source profile, ERD, model dictionary, KPI definitions and limitations are in
+[`docs/air_service_analytics.md`](docs/air_service_analytics.md).
+
 ## Stack
 
 | Component | Role |
