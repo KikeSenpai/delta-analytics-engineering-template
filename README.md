@@ -179,6 +179,24 @@ graph LR
 
 ### Unity Catalog integration
 
+#### Unity Catalog hierarchy and terminology
+
+**Unity Catalog OSS** is the metadata and catalog service — the running server process that stores catalog, schema, and table metadata. It is not the same as *a catalog* (an object inside it). One Unity Catalog server can manage multiple catalogs: `prod`, `development`, `finance`, and so on.
+
+Each catalog follows a three-level hierarchy:
+
+```
+catalog  →  schema  →  table
+```
+
+For example, `prod.raw.orders` means catalog `prod`, schema `raw`, table `orders`. This template boots with one catalog (`prod`) containing three schemas (`default`, `analytics`, `raw`).
+
+Catalogs cannot be created with `CREATE CATALOG` in Spark SQL — the parser rejects it. Instead, a catalog is created in Unity Catalog via its REST API or CLI, then registered in Spark by adding a matching `spark.sql.catalog.<name>` entry to `spark-defaults.conf`. See [Creating additional catalogs](#creating-additional-catalogs) below for the exact steps.
+
+Once a catalog is registered in Spark, schemas and tables inside it can be created and queried with standard SQL (`CREATE SCHEMA`, `CREATE TABLE`, `SELECT`).
+
+#### Spark configuration
+
 Spark uses `UCSingleCatalog` as the `prod` catalog — unqualified table names resolve to `prod.analytics.*`, same as Databricks:
 
 ```properties
@@ -231,8 +249,6 @@ SHOW CATALOGS;
 CREATE SCHEMA staging.raw;
 CREATE SCHEMA staging.analytics;
 ```
-
-A catalog groups schemas; a schema groups tables. A new catalog needs a matching `spark.sql.catalog.<name>` entry in `spark-defaults.conf` to be visible to Spark.
 
 ### Model materialization — why all models are tables
 
