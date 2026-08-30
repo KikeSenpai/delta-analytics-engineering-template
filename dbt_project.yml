@@ -14,7 +14,3 @@ models:
     # Delta format for all models — Databricks-style managed tables
     +file_format: delta
     +materialized: table
-    staging:
-      +materialized: view
-    intermediate:
-      +materialized: view

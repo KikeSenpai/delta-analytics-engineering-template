@@ -7,10 +7,10 @@ order and revenue analysis. It follows the template boundary: files land in `dat
 `prod.raw` Delta tables, and dbt owns transformations in `prod.analytics`.
 
 The model favors explicit natural keys because every source supplies one and no cross-system identity problem is
-present. Staging and intermediate models are views; reusable dimensions, facts and marts are Delta tables. Current
-inputs are full snapshots without extraction/update timestamps, so incremental loading and type-2 history would
-create false precision. At production scale, add immutable event/ingestion timestamps and source change capture,
-then increment facts by those fields and snapshot mutable customers, groups and aircraft.
+present. All models are Delta tables because Unity Catalog OSS does not support views. Current inputs are full
+snapshots without extraction/update timestamps, so incremental loading and type-2 history would create false
+precision. At production scale, add immutable event/ingestion timestamps and source change capture, then increment
+facts by those fields and snapshot mutable customers, groups and aircraft.
 
 ```mermaid
 erDiagram
