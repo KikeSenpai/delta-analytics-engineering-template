@@ -234,6 +234,24 @@ CREATE SCHEMA staging.analytics;
 
 A catalog groups schemas; a schema groups tables. A new catalog needs a matching `spark.sql.catalog.<name>` entry in `spark-defaults.conf` to be visible to Spark.
 
+### Model materialization — why all models are tables
+
+`dbt_project.yml` sets `+materialized: table` for every model. This is intentional: the current Unity Catalog OSS runtime rejects `CREATE VIEW` with error `MISSING_CATALOG_ABILITY.VIEWS`, so view materialization is unavailable.
+
+This is a limitation of the current UC OSS / catalog runtime setup, **not** a general dbt limitation. dbt fully supports `materialized='view'` when the target catalog provides view support (e.g., Databricks Unity Catalog in production).
+
+Because views cannot be created, staging and intermediate layers in this template also materialize as physical Delta tables. This means extra stored copies and refresh work on every `dbt run` compared with views, which would be computed on demand.
+
+Users moving to a catalog or runtime that supports views may configure staging and intermediate models as views — either per-model via `{{ config(materialized='view') }}` or by overriding the default in `dbt_project.yml`:
+
+```yaml
+models:
+  delta_analytics:
+    +file_format: delta
+    +materialized: view          # default for staging/intermediate
+    # override back to table for final/incremental models as needed
+```
+
 ### dbt incremental models
 
 Models use `file_format='delta'` and `incremental_strategy='merge'` — these carry over verbatim when switching to `dbt-databricks` for production.
