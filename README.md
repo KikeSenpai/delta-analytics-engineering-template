@@ -2,6 +2,9 @@
 
 Delta Lake analytics stack for analytics engineer take-home tests. Spark + Delta + Unity Catalog + dbt, with UV for Python dependency management and sqlfluff for SQL linting.
 
+The implemented Air Boltic model, source profile, ERD, model dictionary, KPI definitions and limitations are in
+[`docs/air_service_analytics.md`](docs/air_service_analytics.md).
+
 ## Stack
 
 | Component | Purpose |

@@ -1,0 +1,56 @@
+version: 2
+
+seeds:
+  - name: city_geography
+    description: >-
+      Analyst-maintained country and broad region mapping for every supplied origin/destination city. This reference
+      supports geographic rollups; it intentionally contains no coordinates or inferred route distance.
+    columns:
+      - name: city
+        data_tests: [not_null, unique]
+      - name: country
+        data_tests: [not_null]
+      - name: region
+        data_tests: [not_null]
+
+models:
+  - name: dim_geographies
+    description: Current city geography; grain is one row per city and key is city.
+    columns:
+      - name: city
+        data_tests: [not_null, unique]
+  - name: dim_aeroplane_models
+    description: Current model specifications; grain/key is airplane_model (unique in supplied data).
+    columns:
+      - name: airplane_model
+        data_tests: [not_null, unique]
+      - name: max_seats
+        data_tests: [not_null]
+  - name: dim_aeroplanes
+    description: Current aeroplane inventory enriched with model specifications; grain/key is aeroplane_id.
+    columns:
+      - name: aeroplane_id
+        data_tests: [not_null, unique]
+      - name: airplane_model
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_aeroplane_models')
+                field: airplane_model
+  - name: dim_customer_groups
+    description: Current known groups and observed extract membership; grain/key is customer_group_id.
+    columns:
+      - name: customer_group_id
+        data_tests: [not_null, unique]
+  - name: dim_customers
+    description: >-
+      Current customer profile and group segment; grain/key is customer_id. Type-1 snapshot only because source
+      change timestamps and history are absent.
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: group_membership_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['individual', 'unmatched group reference', 'known group member']

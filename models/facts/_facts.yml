@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: >-
+      One row per seat order. Active means status booked or finished on the trip service date. Realized revenue is
+      finished-order price; booked GMV is booked-order price. These are operational proxies, not accounting revenue.
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('fct_trips')
+                field: trip_id
+      - name: order_status
+        data_tests: [not_null]
+  - name: fct_trips
+    description: >-
+      One row per scheduled trip, including zero-order trips and order/seat economics. Utilization counts non-cancelled
+      orders divided by model maximum seats; it is not physical occupancy unless every order represents one seat.
+    columns:
+      - name: trip_id
+        data_tests: [not_null, unique]
+      - name: aeroplane_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_aeroplanes')
+                field: aeroplane_id
+      - name: origin_city
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_geographies')
+                field: city
+      - name: destination_city
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_geographies')
+                field: city

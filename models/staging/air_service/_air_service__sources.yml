@@ -1,0 +1,45 @@
+version: 2
+
+sources:
+  - name: air_service_raw
+    schema: raw
+    description: >-
+      Exercise extracts loaded as Delta tables by `just load-raw`. Extracts contain no ingestion timestamp,
+      so dbt source freshness cannot be measured without inventing a timestamp.
+    tables:
+      - name: aeroplane
+        description: Current aeroplane inventory snapshot; one row per aeroplane ID.
+        columns:
+          - name: Airplane ID
+            quote: true
+            data_tests: [not_null, unique]
+      - name: aeroplane_model
+        description: Aircraft specifications converted losslessly from the supplied nested JSON.
+        columns:
+          - name: manufacturer
+            data_tests: [not_null]
+          - name: airplane_model
+            data_tests: [not_null, unique]
+      - name: customer
+        description: Current customer snapshot; one row per customer ID.
+        columns:
+          - name: Customer ID
+            quote: true
+            data_tests: [not_null, unique]
+      - name: customer_group
+        description: Current known customer-group snapshot; one row per group ID.
+        columns:
+          - name: ID
+            data_tests: [not_null, unique]
+      - name: order
+        description: Seat orders; one row per order ID.
+        columns:
+          - name: Order ID
+            quote: true
+            data_tests: [not_null, unique]
+      - name: trip
+        description: Scheduled trips; one row per trip ID.
+        columns:
+          - name: Trip ID
+            quote: true
+            data_tests: [not_null, unique]

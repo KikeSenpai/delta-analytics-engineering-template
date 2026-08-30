@@ -7,9 +7,14 @@ profile: 'delta_analytics'
 seeds:
   delta_analytics:
     +file_format: delta   # Delta format so seeds match prod
+    +quote_columns: false
 
 models:
   delta_analytics:
     # Delta format for all models — Databricks-style managed tables
     +file_format: delta
     +materialized: table
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
