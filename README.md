@@ -101,6 +101,7 @@ Run `just` to see all recipes:
 | `just compose-check` | Validate compose syntax (no Docker needed) |
 | `just smoke` | UC API + dbt connection check |
 | `just load-raw` | Load CSV files from `data/` into `prod.raw` (non-dbt) |
+| `just query "SELECT ..."` | Run ad-hoc Spark SQL against the running stack |
 | `just seed` | Load dbt seed files into `prod.analytics` |
 | `just debug` | Verify Thrift connection |
 | `just run` | Build models into `prod.analytics` |

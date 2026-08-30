@@ -55,6 +55,10 @@ debug:
 seed:
     {{DBT_ENV}} uv run dbt seed
 
+# Run ad-hoc Spark SQL queries against the running stack (e.g. just query "SELECT * FROM prod.raw.orders LIMIT 10")
+query sql:
+    docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" -e "{{sql}}"
+
 # Load CSV files from data/ into prod.raw as Delta tables (non-dbt, simulates raw data landing)
 load-raw:
     #!/usr/bin/env bash
