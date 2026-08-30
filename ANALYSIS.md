@@ -58,6 +58,8 @@ those events onto a complete month-step spine.
 Run:
 
 ```bash
+just verify  # full Docker Compose validation
+
 just infra-up
 just load-raw
 just run
