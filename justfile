@@ -75,7 +75,7 @@ load-raw:
         table_name=$(basename "$csv_file" .csv)
         echo "Loading $csv_file → prod.raw.$table_name"
         docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" \
-            -e "DROP TABLE IF EXISTS prod.raw.${table_name}; CREATE TABLE prod.raw.${table_name} USING DELTA AS SELECT * FROM csv.\`/tmp/raw-data/${table_name}.csv\` OPTIONS (header=true, inferSchema=true)"
+            -e "CREATE OR REPLACE TEMPORARY VIEW raw_csv_input USING CSV OPTIONS (path '/tmp/raw-data/${table_name}.csv', header 'true', inferSchema 'true'); DROP TABLE IF EXISTS prod.raw.\`${table_name}\`; CREATE TABLE prod.raw.\`${table_name}\` USING DELTA AS SELECT * FROM raw_csv_input; DROP VIEW raw_csv_input"
     done
     echo "Raw data loaded into prod.raw"
 
@@ -131,6 +131,8 @@ verify: ci compose-check
     trap '{{COMPOSE}} down -v' EXIT
     echo "── Smoke test ──"
     just smoke
+    echo "── Load raw data ──"
+    just load-raw
     echo "── dbt seed ──"
     {{DBT_ENV}} uv run dbt seed
     echo "── dbt run ──"

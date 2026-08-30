@@ -78,7 +78,7 @@ just fix       # auto-fix violations
 ### 6. Full verification (requires Docker)
 
 ```bash
-just verify    # static checks + compose validation + seed/run/test
+just verify    # static checks + compose validation + load-raw + seed/run/test
 ```
 
 ### 7. Static CI check (no Docker needed)
@@ -111,7 +111,7 @@ Run `just` to see all recipes:
 | `just fix` | Auto-fix SQL violations |
 | `just parse` | Parse dbt project (syntax check) |
 | `just ci` | Static CI: parse + lint (no Docker) |
-| `just verify` | Full end-to-end: static + compose + runtime |
+| `just verify` | Full end-to-end: static + compose + load-raw + seed/run/test |
 
 ## Architecture
 
