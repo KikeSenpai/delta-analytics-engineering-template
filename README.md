@@ -49,11 +49,20 @@ To also start MinIO for raw data landing:
 just up-minio
 ```
 
-### 4. Run dbt
+### 4. Load raw data and run dbt
+
+Raw data is loaded separately from dbt — simulating a data engineering team
+landing source data. Place CSV files in `data/` and load them into `prod.raw`:
 
 ```bash
-just seed      # load fixture data into prod.raw
+just load-raw  # load CSV files from data/ into prod.raw (see data/README.md)
+```
+
+Then run dbt transformations:
+
+```bash
 just debug     # verify Thrift connection
+just seed      # load dbt seed files into prod.analytics (optional)
 just run       # build models into prod.analytics
 just test      # run tests
 just docs      # generate + serve docs
@@ -91,7 +100,8 @@ Run `just` to see all recipes:
 | `just clean` | Stop Docker stack + delete volumes |
 | `just compose-check` | Validate compose syntax (no Docker needed) |
 | `just smoke` | UC API + dbt connection check |
-| `just seed` | Load fixture data into `prod.raw` |
+| `just load-raw` | Load CSV files from `data/` into `prod.raw` (non-dbt) |
+| `just seed` | Load dbt seed files into `prod.analytics` |
 | `just debug` | Verify Thrift connection |
 | `just run` | Build models into `prod.analytics` |
 | `just test` | Run data tests |

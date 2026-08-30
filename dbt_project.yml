@@ -6,13 +6,10 @@ profile: 'delta_analytics'
 
 seeds:
   delta_analytics:
-    +schema: raw          # Seeds land in main.raw — fixture source data
-    +file_format: delta   # Delta format so source matches prod
+    +file_format: delta   # Delta format so seeds match prod
 
 models:
   delta_analytics:
     # Delta format for all models — Databricks-style managed tables
     +file_format: delta
     +materialized: table
-    staging:
-      +materialized: view
