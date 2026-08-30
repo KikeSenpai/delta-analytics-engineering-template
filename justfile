@@ -140,3 +140,73 @@ verify: ci compose-check
     echo "── dbt test ──"
     {{DBT_ENV}} uv run dbt test
     echo "── All verification checks passed ──"
+
+# ── Orb-native runtime ──────────────────────────────────────────────────
+# Run the full stack as native processes in the Orb (no Docker needed).
+# Requires .agents/setup to have installed Java, Spark, UC, and Maven jars.
+
+ORB_DIR := justfile_directory() + "/infra/orb"
+ORB_ENV := "SPARK_THRIFT_HOST=127.0.0.1 SPARK_THRIFT_PORT=10000 DBT_PROFILES_DIR=" + justfile_directory()
+
+# Install Orb-native dependencies (Java, Spark, UC, Maven jars)
+orb-setup:
+    bash {{ORB_DIR}}/setup.sh
+
+# Start Orb-native services (UC + Spark Thrift) with readiness checks
+orb-up:
+    bash {{ORB_DIR}}/start.sh
+
+# Stop Orb-native services (kills by PID, no orphans)
+orb-down:
+    bash {{ORB_DIR}}/stop.sh
+
+# Health check for Orb-native services
+orb-status:
+    bash {{ORB_DIR}}/status.sh
+
+# Run ad-hoc Spark SQL against the Orb-native stack (e.g. just orb-query "SELECT 1")
+# Backticks in SQL (e.g. \`order\`) are safe — single-quoted in the recipe.
+orb-query sql:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export JAVA_HOME="$HOME/.local/share/java-17"
+    export PATH="$JAVA_HOME/bin:$PATH"
+    "$HOME/.local/share/spark-4.1.1/bin/beeline" -u "jdbc:hive2://127.0.0.1:10000" -e '{{sql}}'
+
+# Load CSV files from data/ into prod.raw (Orb-native, no Docker)
+orb-load-raw:
+    bash {{ORB_DIR}}/load-raw.sh
+
+# Smoke test: UC API + dbt connection (Orb-native)
+orb-smoke:
+    #!/usr/bin/env bash
+    set -e
+    echo "── UC API ──"
+    curl -sf http://localhost:8090/api/2.1/unity-catalog/catalogs | head -c 200
+    echo
+    echo "── dbt debug ──"
+    {{ORB_ENV}} uv run dbt debug
+
+# Full Orb-native verification: clean state → start → load-raw → dbt → stop
+# No Docker required. Tests the complete stack end-to-end.
+verify-orb: ci
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "── Stopping any existing services ──"
+    bash {{ORB_DIR}}/stop.sh || true
+    echo "── Cleaning runtime state ──"
+    rm -rf .orb-runtime
+    echo "── Starting Orb-native services ──"
+    bash {{ORB_DIR}}/start.sh
+    trap 'bash {{ORB_DIR}}/stop.sh' EXIT
+    echo "── Smoke test ──"
+    just orb-smoke
+    echo "── Load raw data ──"
+    bash {{ORB_DIR}}/load-raw.sh
+    echo "── dbt seed ──"
+    {{ORB_ENV}} uv run dbt seed
+    echo "── dbt run ──"
+    {{ORB_ENV}} uv run dbt run
+    echo "── dbt test ──"
+    {{ORB_ENV}} uv run dbt test
+    echo "── All Orb-native verification checks passed ──"

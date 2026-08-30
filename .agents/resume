@@ -10,4 +10,14 @@ else
   echo "venv missing — rerun .agents/setup"
 fi
 
+# Verify orb-native dependencies
+SHARE_DIR="$HOME/.local/share"
+for dep in "java-17/bin/java" "spark-4.1.1/bin/spark-submit" "unitycatalog-0.5.0/bin/start-uc-server"; do
+  if [ -f "$SHARE_DIR/$dep" ]; then
+    echo "orb dep OK: $dep"
+  else
+    echo "orb dep MISSING: $dep — rerun .agents/setup"
+  fi
+done
+
 echo "=== .agents/resume complete: $(date) ==="

@@ -87,6 +87,32 @@ just verify    # static checks + compose validation + load-raw + seed/run/test
 just ci        # dbt parse + sqlfluff lint
 ```
 
+### 8. Orb-native workflow (no Docker required)
+
+Inside Amp Orbs (or any environment without Docker), the full stack can run as native processes:
+
+```bash
+# Install native dependencies (Java, Spark, UC, Maven jars) — done automatically by .agents/setup
+just orb-setup
+
+# Start/stop/status
+just orb-up        # start UC + Spark Thrift with readiness checks
+just orb-status    # health check
+just orb-down      # stop all services (PID-based, no orphans)
+
+# Use the stack
+just orb-smoke     # UC API + dbt connection check
+just orb-load-raw  # load CSV files from data/ into prod.raw
+just orb-query "SELECT * FROM prod.raw.\`order\` LIMIT 10"  # ad-hoc SQL
+
+# Full end-to-end verification (no Docker)
+just verify-orb    # clean state → start → load-raw → seed/run/test → stop
+```
+
+**How it works:** The same Spark 4.1.1 + Delta 4.3.0 + Unity Catalog 0.5.0 stack runs as native processes. UC server uses port 8090 (8080/8081 are occupied in orb environments). Spark Thrift Server uses port 10000 (same as Docker, so `profiles.yml` works unchanged). Runtime state (PIDs, logs, storage) lives in `.orb-runtime/` (gitignored).
+
+**Limitations:** UC uses embedded H2 database (wiped on each start for clean state). No MinIO — raw data loaded from local filesystem. `metastore_db/` (Derby) is created at repo root by Spark, gitignored.
+
 ## Available commands
 
 Run `just` to see all recipes:
@@ -111,7 +137,15 @@ Run `just` to see all recipes:
 | `just fix` | Auto-fix SQL violations |
 | `just parse` | Parse dbt project (syntax check) |
 | `just ci` | Static CI: parse + lint (no Docker) |
-| `just verify` | Full end-to-end: static + compose + load-raw + seed/run/test |
+| `just verify` | Full end-to-end with Docker: static + compose + load-raw + seed/run/test |
+| `just verify-orb` | Full end-to-end without Docker: Orb-native stack + load-raw + seed/run/test |
+| `just orb-setup` | Install Orb-native dependencies (Java, Spark, UC, Maven jars) |
+| `just orb-up` | Start Orb-native services (UC + Spark Thrift) |
+| `just orb-down` | Stop Orb-native services |
+| `just orb-status` | Health check for Orb-native services |
+| `just orb-smoke` | UC API + dbt connection check (Orb-native) |
+| `just orb-load-raw` | Load CSV files from `data/` into `prod.raw` (Orb-native) |
+| `just orb-query "SELECT ..."` | Run ad-hoc Spark SQL against the Orb-native stack |
 
 ## Architecture
 

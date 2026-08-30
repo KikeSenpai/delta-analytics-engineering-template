@@ -219,3 +219,9 @@ __marimo__/
 
 # Amp orb artifacts
 .user.yml
+
+# Orb-native runtime state (UC db, Spark warehouse, PIDs, logs)
+.orb-runtime/
+
+# Spark Derby metastore (created at repo root by Thrift Server)
+metastore_db/

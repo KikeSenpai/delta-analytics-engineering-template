@@ -25,4 +25,11 @@ if [ -f ".env.example" ]; then
   [ -f ".env.local" ] || cp -- .env.example .env.local
 fi
 
+# ── Orb-native dependencies ─────────────────────────────────────────────
+# Install Java, Spark, Unity Catalog, and Maven jars for running the full
+# stack as native processes (no Docker needed). Idempotent + cached.
+# See infra/orb/setup.sh for details.
+echo "Installing Orb-native dependencies..."
+bash infra/orb/setup.sh
+
 echo "=== .agents/setup complete: $(date) ==="
