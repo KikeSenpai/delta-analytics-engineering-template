@@ -16,6 +16,22 @@ if ! command -v just >/dev/null 2>&1; then
   curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
 fi
 
+# Docker Engine + Compose plugin — install if missing.
+# The daemon is not started here: .amp/services.yaml runs dockerd as a supervised orb service.
+if ! command -v dockerd >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+  echo "Installing Docker Engine + Compose plugin..."
+  sudo install -m 0755 -d /etc/apt/keyrings
+  sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  # The packages enable systemd units; keep them off so only the supervised dockerd runs.
+  sudo systemctl disable --now docker.service docker.socket containerd.service
+fi
+
 # Sync Python dependencies from uv.lock (idempotent — no-op if already synced)
 echo "Syncing Python dependencies..."
 uv sync
@@ -24,12 +40,5 @@ uv sync
 if [ -f ".env.example" ]; then
   [ -f ".env.local" ] || cp -- .env.example .env.local
 fi
-
-# ── Orb-native dependencies ─────────────────────────────────────────────
-# Install Java, Spark, Unity Catalog, and Maven jars for running the full
-# stack as native processes (no Docker needed). Idempotent + cached.
-# See infra/orb/setup.sh for details.
-echo "Installing Orb-native dependencies..."
-bash infra/orb/setup.sh
 
 echo "=== .agents/setup complete: $(date) ==="

@@ -8,7 +8,7 @@ services:
   unity-catalog:
     image: unitycatalog/unitycatalog:v0.5.0
     ports:
-      - "8081:8080"  # UC REST API
+      - "8090:8080"  # UC REST API (host 8081 is taken in Amp orbs)
     volumes:
       - ./uc/conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
       - uc-db:/home/unitycatalog/etc/db
@@ -34,7 +34,7 @@ services:
        echo 'Unity Catalog bootstrapped: prod.default, prod.analytics, prod.raw'"
 
   spark:
-    image: deltaio/delta-docker:latest
+    image: deltaio/delta-docker:4.3.0  # pinned: Spark 4.1.1 + Delta 4.3.0 (latest moved to Spark 4.2)
     user: root          # entrypoint copies jars into $SPARK_HOME/jars — needs write access
     ports:
       - "10000:10000"  # Spark Thrift Server (dbt-spark connects here)

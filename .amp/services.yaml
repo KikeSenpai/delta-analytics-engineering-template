@@ -1,0 +1,5 @@
+# Amp orb supervised services. Started by .agents/resume (or `amp orb services ensure`).
+services:
+  docker-daemon:
+    # Socket group = the orb user's group, so `docker` works without sudo.
+    command: sudo dockerd --group "$(id -gn)"
