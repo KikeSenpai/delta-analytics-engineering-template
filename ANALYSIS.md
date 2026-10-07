@@ -12,7 +12,8 @@ one reconstructed entity and step retain the earliest timestamp deterministicall
 
 ## Source evidence and identity
 
-The six supplied CSVs are loaded unchanged into `prod.raw` with `just load-raw`; dbt begins at typed staging views/tables.
+The six supplied CSVs are loaded unchanged into `prod.raw` with `just load-raw`; dbt begins at typed staging tables.
+All `prod.raw` and `prod.analytics` tables are Unity Catalog managed Delta tables stored in MinIO (`s3://delta-warehouse`).
 The supplied PostgreSQL `load_data.sh` confirms one CSV maps directly to one same-named raw table, but is not needed by
 this Delta/Spark template.
 
@@ -64,12 +65,14 @@ just infra-up
 just load-raw
 just run
 just test
+just storage-check  # Delta log + data files of every prod.raw / prod.analytics table exist in MinIO
 just query "SELECT * FROM prod.analytics.rep_sales_funnel_monthly ORDER BY month, funnel_step"
 ```
 
 `just ci` runs parsing and linting without Docker. Singular and generic dbt tests enforce source/model nulls, keys,
 relationships, accepted domains, chronology, full mapping coverage, report grain, nonnegative counts, and reconciliation.
-`just verify` includes `just load-raw`, so its clean-stack run is end-to-end for this supplied dataset.
+`just verify` includes `just load-raw`, the MinIO storage check, and a stack restart that re-checks raw row counts,
+`dbt test`, and storage, so its clean-stack run is end-to-end for this supplied dataset.
 
 ## Limitations
 
