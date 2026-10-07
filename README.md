@@ -43,11 +43,16 @@ just infra-up
 
 Unity Catalog starts first (REST API on `localhost:8090`), then `uc-init` bootstraps the `prod` catalog with `analytics` and `raw` schemas. Spark Thrift Server is ready when the `spark` container healthcheck passes (~120s on first run — Maven downloads Delta + UC jars).
 
-To also start MinIO for raw data landing:
+If you need MinIO for raw data landing, use `just up-minio` instead — it runs
+`docker compose --profile minio up -d --wait`, which starts the base services
+and MinIO together:
 
 ```bash
 just up-minio
 ```
+
+You do not need to run both commands: `just infra-up` for the base stack, or
+`just up-minio` when MinIO is needed.
 
 ### 4. Load raw data and run dbt
 
