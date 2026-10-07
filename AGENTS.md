@@ -44,6 +44,10 @@ Run `just verify` — the canonical end-to-end check, locally and in Amp orbs (r
 
 **Never claim infrastructure works if only static checks ran.**
 
+`just verify` requires user-provided CSV files in `data/` and fails at `load-raw` without them. This is intended: do not commit sample data or make `verify` generate data.
+
+When testing template changes (as a maintainer/agent), create a small temporary fixture such as `data/fixture_orders.csv`, run `just verify`, then delete the fixture and confirm `git status` shows no CSV files before committing.
+
 ### Querying raw data
 
 After loading raw data with `just load-raw`, explore it with:
@@ -58,7 +62,7 @@ This runs Spark SQL via Beeline against the Thrift Server — no dbt needed.
 
 ### In Amp orbs
 
-Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose plugin, and `.amp/services.yaml` declares `dockerd` as the supervised `docker-daemon` service. `.agents/resume` starts it; if `docker info` fails, run `amp orb services ensure` and check `amp orb service logs docker-daemon`. Host port 8081 is taken in orbs, so the UC REST API is published on `localhost:8090` everywhere.
+Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose plugin, and `.amp/services.yaml` declares `dockerd` as the supervised `docker-daemon` service. `.agents/resume` starts it and waits until `docker info` succeeds (default 8 s, fits Amp's 10 s resume window; override with `DOCKER_WAIT_TIMEOUT`). On timeout it exits non-zero and prints the service status (see `~/.cache/amp/logs/resume.log`); rerun `.agents/resume` and check `amp orb service logs docker-daemon`. Host port 8081 is taken in orbs, so the UC REST API is published on `localhost:8090` everywhere.
 
 ### On failure
 

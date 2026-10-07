@@ -81,6 +81,9 @@ just fix       # auto-fix violations
 just verify    # static checks + compose validation + load-raw + seed/run/test
 ```
 
+`just verify` needs your CSV files in `data/`; it fails at `load-raw` if none
+exist. The template ships no sample data and never generates any.
+
 ### 7. Static CI check (no Docker needed)
 
 ```bash
@@ -89,7 +92,7 @@ just ci        # dbt parse + sqlfluff lint
 
 ### 8. Amp orbs
 
-Orbs use the same Docker Compose workflow. `.agents/setup` installs Docker Engine + the Compose plugin, and `.amp/services.yaml` runs `dockerd` as a supervised orb service (started by `.agents/resume`, or manually with `amp orb services ensure`). Then run `just verify` as usual.
+Orbs use the same Docker Compose workflow. `.agents/setup` installs Docker Engine + the Compose plugin, and `.amp/services.yaml` runs `dockerd` as a supervised orb service (started by `.agents/resume`, or manually with `amp orb services ensure`). `.agents/resume` then waits until `docker info` succeeds (default 8 s, override with `DOCKER_WAIT_TIMEOUT`) and exits non-zero with the service status if it does not. Then run `just verify` as usual.
 
 ## Available commands
 

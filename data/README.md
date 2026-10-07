@@ -35,6 +35,13 @@ Each CSV file becomes a Delta table in `prod.raw`:
 Table name = filename without extension. CSV must have a header row; column
 types are inferred automatically.
 
+This template ships no sample data. You must provide your own CSV files;
+`just load-raw` and `just verify` fail if `data/` has none.
+
+Template maintainers and agents testing template changes may add a small
+temporary fixture CSV here to run `just verify`, but must delete it afterward
+and never commit it.
+
 ## After loading
 
 Create a dbt source definition in `models/` to reference the loaded tables:
