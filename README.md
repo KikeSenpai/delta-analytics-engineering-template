@@ -37,7 +37,7 @@ just setup
 ### 3. Start the Docker stack
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 just infra-up
 ```
 
