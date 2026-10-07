@@ -22,10 +22,13 @@ Learn more: [Spark Distributed SQL Engine — Thrift Server & Beeline](https://s
 ## Usage
 
 1. Place CSV files in this directory (e.g. `orders.csv`, `customers.csv`)
-2. Start the Docker stack: `just infra-up`
+2. Start the Docker stack (MinIO, Unity Catalog, Spark): `just infra-up`
 3. Load raw data: `just load-raw`
 
-Each CSV file becomes a Delta table in `prod.raw`:
+Each CSV file becomes a Unity Catalog managed Delta table in `prod.raw`. Its
+data files and `_delta_log` are written to MinIO under
+`s3://delta-warehouse/prod/raw/`; Unity Catalog stores only the table metadata.
+Check with `just storage-check`.
 
 | File             | Table             |
 |------------------|-------------------|

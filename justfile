@@ -1,3 +1,6 @@
+# Load .env (copied from .env.example) so Compose and dbt see the same settings
+set dotenv-load
+
 # Default: show available recipes
 default:
     @just --list
@@ -13,15 +16,9 @@ setup:
 COMPOSE := "docker compose -f infra/docker-compose.yml"
 DBT_ENV := "DBT_PROFILES_DIR=" + justfile_directory()
 
-# Start the full Docker stack and wait for healthchecks
+# Start the stack and wait for healthchecks: MinIO → bucket init → Unity Catalog → UC bootstrap → Spark
 infra-up:
-    {{COMPOSE}} up -d --wait
-
-# Start with optional MinIO storage for raw data
-# --wait on all services fails: compose treats one-shot minio-init exit as an error
-up-minio:
-    {{COMPOSE}} --profile minio up -d --wait minio
-    {{COMPOSE}} --profile minio run --rm minio-init
+    {{COMPOSE}} up -d --build --wait
 
 # Stop the Docker stack (preserve volumes)
 down:
@@ -43,9 +40,31 @@ infra-logs:
 compose-check:
     {{COMPOSE}} config --quiet
 
-# Bootstrap Unity Catalog catalog + schemas (run once after up)
-uc-bootstrap:
-    {{COMPOSE}} run --rm uc-init
+# List all objects in the MinIO warehouse bucket
+minio-ls:
+    docker exec infra-minio-1 mc ls -r local/delta-warehouse
+
+# Prove every prod.raw / prod.analytics table is physically stored in MinIO (Delta log + data files)
+storage-check:
+    #!/usr/bin/env -S uv run python
+    import json, subprocess, sys, urllib.request
+    failed = False
+    for schema in ("raw", "analytics"):
+        url = f"http://localhost:8090/api/2.1/unity-catalog/tables?catalog_name=prod&schema_name={schema}"
+        tables = json.load(urllib.request.urlopen(url)).get("tables", [])
+        print(f"prod.{schema}: {len(tables)} table(s)")
+        for table in tables:
+            location = table["storage_location"]
+            listing = subprocess.run(
+                ["docker", "exec", "infra-minio-1", "mc", "ls", "-r", "local/" + location.removeprefix("s3://")],
+                capture_output=True, text=True,
+            ).stdout
+            has_log = "_delta_log/00000000000000000000.json" in listing
+            parquet = listing.count(".parquet")
+            ok = location.startswith("s3://delta-warehouse/") and has_log
+            failed |= not ok
+            print(f"  {'ok  ' if ok else 'FAIL'} {table['name']}: _delta_log={has_log} parquet_files={parquet} {location}")
+    sys.exit("Tables missing from MinIO" if failed else 0)
 
 # ── dbt ─────────────────────────────────────────────────────────────────
 
@@ -128,9 +147,9 @@ ci: parse lint
 verify: ci compose-check
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "── Starting Docker stack ──"
-    {{COMPOSE}} up -d --wait
     trap '{{COMPOSE}} down -v' EXIT
+    echo "── Starting Docker stack ──"
+    just infra-up
     echo "── Smoke test ──"
     just smoke
     echo "── Load raw data ──"
@@ -141,4 +160,26 @@ verify: ci compose-check
     {{DBT_ENV}} uv run dbt run
     echo "── dbt test ──"
     {{DBT_ENV}} uv run dbt test
+    echo "── MinIO storage check ──"
+    just storage-check
+    echo "── Restart persistence check ──"
+    row_counts() {
+        for csv_file in data/*.csv; do
+            table_name=$(basename "$csv_file" .csv)
+            count=$(docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" --silent=true \
+                --showHeader=false --outputformat=csv2 -e "SELECT COUNT(*) FROM prod.raw.\`${table_name}\`" \
+                2>/dev/null | awk 'END { print $NF }')
+            [[ "$count" =~ ^[0-9]+$ ]] || { echo "Cannot count prod.raw.$table_name" >&2; return 1; }
+            echo "prod.raw.$table_name: $count rows"
+        done
+    }
+    before=$(row_counts)
+    echo "$before"
+    {{COMPOSE}} down
+    just infra-up
+    after=$(row_counts)
+    [ "$before" = "$after" ] || { echo "Row counts changed across restart:"; echo "$after"; exit 1; }
+    echo "Row counts unchanged after restart"
+    {{DBT_ENV}} uv run dbt test
+    just storage-check
     echo "── All verification checks passed ──"

@@ -5,7 +5,8 @@ Guidance for AI agents working in this repository.
 ## Project overview
 
 Delta Lake analytics engineering template for take-home tests.
-Stack: Spark 4.1 + Delta 4.3 + Unity Catalog OSS + dbt-spark + UV + sqlfluff + just.
+Stack: MinIO (table storage) + Unity Catalog OSS (metadata) + Spark 4.1 + Delta 4.3 + dbt-spark + UV + sqlfluff + just.
+MinIO is required: every `prod.*` Delta table is physically stored in `s3://delta-warehouse`.
 
 ## Layout
 
@@ -15,7 +16,7 @@ Stack: Spark 4.1 + Delta 4.3 + Unity Catalog OSS + dbt-spark + UV + sqlfluff + j
 ├── seeds/                           # dbt seed files (empty — optional)
 ├── macros/                          # dbt macros (empty — template user adds)
 ├── data/                            # Raw CSV landing zone (load-raw reads from here)
-├── infra/                           # Docker stack (compose, spark, uc configs)
+├── infra/                           # Docker stack (compose, Spark Dockerfile + conf, UC conf)
 ├── justfile                         # CLI commands
 ├── pyproject.toml                   # Python deps + sqlfluff config
 ├── .agents/                         # Amp orb lifecycle scripts (setup, resume)
@@ -34,19 +35,21 @@ Run `just verify` — the canonical end-to-end check, locally and in Amp orbs (r
 
 1. Runs static checks (`dbt parse` + `sqlfluff lint`)
 2. Validates `docker-compose.yml` syntax
-3. Starts the full Docker stack with `--wait` (healthchecks)
+3. Starts the stack with `just infra-up` (MinIO → bucket init → UC → UC bootstrap → Spark, `--wait` on healthchecks)
 4. Verifies UC API is responding
 5. Loads CSV files from `data/` into `prod.raw` (`load-raw`)
 6. Runs `dbt seed` (load seed data into prod.analytics)
 7. Runs `dbt run` (build models)
 8. Runs `dbt test` (data tests)
-9. Tears down the stack and volumes on exit (trap)
+9. Runs `just storage-check` (every prod.raw / prod.analytics table has its Delta log in MinIO)
+10. Restarts the stack (volumes kept), then re-checks raw row counts, `dbt test` and storage
+11. Tears down the stack and volumes on exit (trap)
 
 **Never claim infrastructure works if only static checks ran.**
 
 `just verify` requires user-provided CSV files in `data/` and fails at `load-raw` without them. This is intended: do not commit sample data or make `verify` generate data.
 
-When testing template changes (as a maintainer/agent), create a small temporary fixture such as `data/fixture_orders.csv`, run `just verify`, then delete the fixture and confirm `git status` shows no CSV files before committing.
+When testing template changes (as a maintainer/agent), create a small temporary fixture such as `data/fixture_orders.csv` (plus a temporary model under `models/` so `prod.analytics` is exercised), run `just verify`, then delete the fixtures and confirm `git status` shows no CSV files or fixture models before committing.
 
 ### Querying raw data
 
@@ -68,8 +71,10 @@ Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose pl
 
 - `just infra-status` — show container health
 - `just infra-logs` — tail service logs
-- `docker exec infra-spark-1 sh -c 'tail -100 /tmp/spark-logs/*.out'` — Spark daemon log
+- `docker logs infra-spark-1` — Spark Thrift Server log (runs in the foreground)
 - `docker logs infra-unity-catalog-1` — UC server log
+- `docker logs infra-uc-init-1` / `docker logs infra-minio-init-1` — bootstrap output
+- `just minio-ls` — objects in `s3://delta-warehouse`
 
 ## Prerequisites
 
@@ -84,12 +89,14 @@ Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose pl
 | `just ci` | SQL/dbt-only changes — fast, no Docker |
 | `just compose-check` | Validate compose syntax — no Docker daemon needed |
 | `just verify` | Full end-to-end with Docker — infra changes, dependency bumps, service wiring |
-| `just infra-up` | Start Docker stack and wait for health |
+| `just infra-up` | Start Docker stack (the only startup command) and wait for health |
 | `just infra-status` | Check Docker container health |
 | `just infra-logs` | Tail Docker service logs |
 | `just smoke` | UC API + dbt connection check (Docker) |
 | `just load-raw` | Load CSV files from `data/` into `prod.raw` (Docker, non-dbt) |
 | `just query "SELECT ..."` | Run ad-hoc Spark SQL against the Docker stack |
+| `just storage-check` | Assert every prod.raw / prod.analytics table is stored in MinIO |
+| `just minio-ls` | List objects in the MinIO warehouse bucket |
 | `just seed` | Load dbt seed files into `prod.analytics` |
 | `just run` | Build dbt models |
 | `just test` | Run dbt data tests |
@@ -106,5 +113,7 @@ Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose pl
 - Models use `file_format='delta'` and `incremental_strategy='merge'`.
 - Seeds land in the default target schema (`prod.analytics`). Use for small reference/lookup data, not raw source data.
 - Raw data is loaded separately from dbt via `just load-raw` — CSV files in `data/` → Delta tables in `prod.raw`. See `data/README.md`.
-- UC bootstrap creates `prod.default`, `prod.analytics`, `prod.raw` schemas.
-- Spark entrypoint resolves Maven jars into `$SPARK_HOME/jars/` (workaround for Spark 4.x ArtifactManager classloader isolation).
+- UC bootstrap (`uc-init`) creates `prod.default`, `prod.analytics`, `prod.raw` with storage roots `s3://delta-warehouse/prod/<schema>`; all tables are UC-managed and land there.
+- UC vends the MinIO keys (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` from `.env`) to Spark; Spark has no storage keys of its own. See README "Storage credentials".
+- `minio-data` (table files) and `uc-db` (metadata) volumes must be kept or deleted together (`just clean`).
+- `infra/spark/Dockerfile` bakes pinned jars (Delta, UC connector, hadoop-aws 3.4.2) into `$SPARK_HOME/jars/` at build time (workaround for Spark 4.x ArtifactManager classloader isolation).

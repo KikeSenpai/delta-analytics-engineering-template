@@ -38,7 +38,7 @@ uv sync
 
 # Copy env template without clobbering
 if [ -f ".env.example" ]; then
-  [ -f ".env.local" ] || cp -- .env.example .env.local
+  [ -f ".env" ] || cp -- .env.example .env
 fi
 
 echo "=== .agents/setup complete: $(date) ==="
