@@ -73,6 +73,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-admin}
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-password}
+    volumes:
+      - minio-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -94,3 +96,4 @@ services:
 volumes:
   uc-db:
   uc-storage:
+  minio-data:

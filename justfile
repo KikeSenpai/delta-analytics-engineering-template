@@ -18,8 +18,10 @@ infra-up:
     {{COMPOSE}} up -d --wait
 
 # Start with optional MinIO storage for raw data
+# --wait on all services fails: compose treats one-shot minio-init exit as an error
 up-minio:
-    {{COMPOSE}} --profile minio up -d --wait
+    {{COMPOSE}} --profile minio up -d --wait minio
+    {{COMPOSE}} --profile minio run --rm minio-init
 
 # Stop the Docker stack (preserve volumes)
 down:
