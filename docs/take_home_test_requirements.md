@@ -1,8 +1,5 @@
 # Take-Home Test: Uber Air Analytics Engineering
 
-*Faithful transcription of the original employer assignment, with the company names replaced for
-privacy (the platform company and its air service appear here as Uber and Uber Air).*
-
 # Important points
 
 - Include argumentation for your decisions and feel free to demonstrate your areas of interest and expertise.
