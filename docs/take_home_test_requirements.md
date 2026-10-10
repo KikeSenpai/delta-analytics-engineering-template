@@ -2,7 +2,7 @@
 
 ## Business context
 
-Your company runs its sales operation in Pipedrive CRM. Sales leadership wants to understand how prospects flow through
+Vattenfall runs its sales operation in Pipedrive CRM. Sales leadership wants to understand how prospects flow through
 the sales process over time: where deals are entering the funnel, how many reach each stage, and where volume concentrates
 across the year.
 
