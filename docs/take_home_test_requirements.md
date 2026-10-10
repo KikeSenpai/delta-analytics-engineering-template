@@ -1,8 +1,8 @@
-# Take-Home Test: Air Boltic Analytics Engineering
+# Take-Home Test: Uber Air Analytics Engineering
 
 ## Business context
 
-Bolt has hypothetically launched **Air Boltic**, a marketplace matching aeroplane operators with individuals
+Uber has hypothetically launched **Uber Air**, a marketplace matching aeroplane operators with individuals
 and groups needing transport. The service wants to understand regional growth drivers, the customer segments
 it serves well, and its use cases (distance, geography, price tier, group/seat size, aircraft type), plus
 portfolio-comparable metrics including DAU/WAU/MAU and revenue. The business aims to facilitate 20% of global
