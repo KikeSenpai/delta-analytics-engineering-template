@@ -79,7 +79,8 @@ The six Air Boltic raw tables are loaded from the supplied exercise files:
 ### Aeroplane model conversion provenance
 
 Source attachment: `8da3df3e5617671a01cedccaca68c03d2424119fa9aba40cabffbc89b182d902-aeroplane_model.json`.
-Its SHA-256 is `b91a1b319b31aa00e27de8f93aef382db11c8843b9eae865098ea5c8b4d499c8`.
+Its SHA-256 is `b91a1b319b31aa00e27de8f93aef382db11c8843b9eae865098ea5c8b4d499c8`. A byte-identical copy is
+archived at [`docs/aeroplane_model.json`](../docs/aeroplane_model.json).
 
 The JSON has a two-level `manufacturer -> model -> attributes` structure. It was flattened to one row per
 manufacturer/model pair. `max_weight` was renamed `max_weight_kg`; `max_distance` was renamed
