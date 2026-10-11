@@ -1,7 +1,98 @@
 version: 2
 
+seeds:
+  - name: city_geography
+    description: >-
+      Analyst-maintained country and broad region mapping for every supplied origin/destination city. This reference
+      supports geographic rollups; it intentionally contains no coordinates or inferred route distance.
+    columns:
+      - name: city
+        data_tests: [not_null, unique]
+      - name: country
+        data_tests: [not_null]
+      - name: region
+        data_tests: [not_null]
+
 models:
-  - name: mart_active_users
+  - name: dim_geographies
+    description: Current city geography; grain is one row per city and key is city.
+    columns:
+      - name: city
+        data_tests: [not_null, unique]
+  - name: dim_aeroplanes
+    description: >-
+      Current aeroplane inventory enriched with model specifications (denormalized from the model lookup);
+      grain/key is aeroplane_id.
+    columns:
+      - name: aeroplane_id
+        data_tests: [not_null, unique]
+      - name: max_seats
+        data_tests: [not_null]
+  - name: dim_customers
+    description: >-
+      Current customer profile with group membership resolved; grain/key is customer_id. Type-1 snapshot only because
+      source change timestamps and history are absent. Missing group names/types are labelled 'no group recorded'
+      (customer has no group reference) or 'unknown group' (referenced group absent from the extract) rather than
+      inferring customer type.
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: customer_group_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['no group recorded', 'unknown group', 'Company', 'Private Group', 'Organisation']
+  - name: fct_orders
+    description: >-
+      One row per seat order. Active means status booked or finished on the trip service date. Realized revenue is
+      finished-order price; booked GMV is booked-order price. These are operational proxies, not accounting revenue.
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('fct_trips')
+                field: trip_id
+      - name: order_status
+        data_tests: [not_null]
+      - name: total_revenue_eur
+        description: >-
+          Sum of realized and booked value: Price (EUR) on finished orders plus Price (EUR) on booked orders.
+          Total value of active (non-cancelled) orders; excludes cancelled value. Proxy, not accounting revenue.
+  - name: fct_trips
+    description: >-
+      One row per scheduled trip, including trips that received no orders; grain/key is trip_id. Order metrics and
+      dimensional attributes are joined in the agg models, not carried here.
+    columns:
+      - name: trip_id
+        data_tests: [not_null, unique]
+      - name: aeroplane_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_aeroplanes')
+                field: aeroplane_id
+      - name: origin_city
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_geographies')
+                field: city
+      - name: destination_city
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_geographies')
+                field: city
+  - name: agg_active_users
     description: >-
       Portfolio-style DAU/WAU/MAU and revenue by service period. An active user is a distinct customer with at least
       one booked or finished seat order whose trip starts in the period. Week starts Monday. This measures travel
@@ -15,7 +106,7 @@ models:
                 values: ['day', 'week', 'month']
       - name: period_start
         data_tests: [not_null]
-  - name: mart_service_daily
+  - name: agg_service_daily
     description: >-
       Daily regional service KPI mart; grain is service date, origin region and destination region. Includes trips
       without orders, enabling supply and growth analysis.
@@ -26,11 +117,11 @@ models:
         data_tests: [not_null]
       - name: destination_region
         data_tests: [not_null]
-  - name: mart_route_performance
+  - name: agg_route_performance
     description: All-time city-pair supply, order, revenue and seat-utilization metrics; grain is directional route.
-  - name: mart_customer_segments
+  - name: agg_customer_groups
     description: >-
-      Customer order economics by current group segment, group-match quality and descriptive order-price band.
-      Grain is customer segment, membership status and price band.
-  - name: mart_aircraft_performance
+      Customer order economics by group type and name; grain is customer group (groupless customers appear as
+      'no group recorded').
+  - name: agg_aircraft_performance
     description: Aircraft model supply, order, revenue and seat-utilization metrics; grain is manufacturer/model.
