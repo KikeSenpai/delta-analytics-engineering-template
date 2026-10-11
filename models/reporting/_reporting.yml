@@ -1,0 +1,216 @@
+version: 2
+
+# Consumer-ready aggregates. Each table has exactly one grain (stated first in its description).
+# Metric additivity:
+#   additive      safe to SUM across rows of the table (counts of trips/orders/seats, EUR values)
+#   non-additive  ratios and distinct counts: recompute from additive columns or from fct_order,
+#                 never SUM or AVG them across rows.
+# Shared order-status metric definitions (all reporting tables use the same names):
+#   orders_total / orders_finished / orders_booked / orders_cancelled   order counts by status
+#   seats_sold                  non-cancelled orders (one order = one seat)
+#   gross_order_value_eur       price of all orders, any status
+#   net_order_value_eur         price of non-cancelled orders (finished + booked)
+#   realized_revenue_proxy_eur  price of finished orders (customer value, not Uber Air commission)
+#   open_booking_value_eur      price of booked, not yet finished orders
+#   cancelled_value_eur         price of cancelled orders
+#   max_seat_capacity           SUM of model max_seats over departed trips (upper-bound capacity)
+#   max_seat_utilisation        seats_sold / max_seat_capacity (non-additive, lower bound of load factor)
+#   order_cancellation_rate     orders_cancelled / orders_total (non-additive)
+#   avg_net_price_per_seat_eur  net_order_value_eur / seats_sold (non-additive)
+#   active_customers            distinct customers with >= 1 non-cancelled order (non-additive)
+
+models:
+  - name: agg_service_daily
+    description: >
+      Grain: one row per service date (trip departure date) on the full dim_date spine; days
+      without trips are zero-filled. Service performance over time. All counts and EUR values
+      are additive across days (roll up to week_start / month_start by SUM); ratios are not.
+    columns:
+      - name: service_date
+        data_tests: [unique, not_null]
+      - name: trips_departed
+        description: Trips departing that day, including zero-order trips. Additive.
+      - name: zero_order_trips
+        description: Departing trips with no order of any status. Additive.
+
+  - name: agg_route
+    description: >
+      Grain: one row per directional route (origin_city -> destination_city). Origin/destination
+      analysis. No region, country or distance attributes exist in the source, so no
+      regional or short/long-haul grouping is derived. Counts and EUR values additive across
+      routes; active_customers and ratios non-additive.
+    columns:
+      - name: route_key
+        data_tests: [unique, not_null]
+      - name: route_name
+        data_tests: [unique, not_null]
+
+  - name: agg_aircraft_model
+    description: >
+      Grain: one row per aircraft model flown by the fleet (manufacturer + aircraft_model).
+      Aircraft-type analysis, kept separate from routes to avoid mixed-grain rollups. Counts and
+      EUR values additive across models; active_customers and ratios non-additive.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "CONCAT_WS('|', manufacturer, aircraft_model)"
+    columns:
+      - name: fleet_aircraft
+        description: Physical aircraft of this model in the fleet. Additive.
+      - name: max_seats
+        description: Model specification (descriptor), not a measure. Do not sum.
+
+  - name: agg_customer
+    description: >
+      Grain: one row per customer (all customers). Customer value and behaviour. Counts and EUR
+      values additive across customers.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: group_membership_status
+        data_tests: [not_null]
+      - name: active_trips
+        description: Distinct trips with a non-cancelled order. Additive across customers only.
+      - name: active_routes
+        description: Distinct routes with a non-cancelled order. Non-additive.
+      - name: is_active_customer
+        description: Has at least one non-cancelled order.
+      - name: is_repeat_customer
+        description: Has non-cancelled orders on more than one distinct trip.
+
+  - name: agg_customer_group
+    description: >
+      Grain: one row per customer-group segment (group_membership_status, customer_group_ref).
+      group_member rows = every group in the group master (also groups without customers);
+      one no_group row (customer_group_ref NULL); one invalid_group_reference row per missing
+      referenced group id. Rolled up from agg_customer, so customers, active_customers,
+      repeat_customers, counts and EUR values are additive across segments; ratios are not.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "CONCAT_WS('|', group_membership_status, COALESCE(CAST(customer_group_ref AS STRING), ''))"
+    columns:
+      - name: group_membership_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [group_member, no_group, invalid_group_reference]
+      - name: segment_name
+        data_tests: [not_null]
+
+  - name: agg_active_customers_daily
+    description: >
+      Grain: one row per day on dim_date. DAU / rolling WAU / rolling MAU. Active customer =
+      distinct customer with >= 1 non-cancelled order on a trip departing in the window. Windows
+      end on and include activity_date: DAU [d, d], WAU [d-6, d], MAU [d-29, d]. Rolling windows
+      give a value every day for monitoring and a stable DAU/MAU stickiness ratio. All columns
+      non-additive.
+    columns:
+      - name: activity_date
+        data_tests: [unique, not_null]
+      - name: is_full_7d_window
+        description: FALSE while the 7-day window reaches before the first observed day (WAU understated).
+      - name: is_full_30d_window
+        description: FALSE while the 30-day window reaches before the first observed day (MAU understated).
+
+  - name: agg_active_customers_calendar
+    description: >
+      Grain: one row per (period_type, period_start), period_type in (week, month). Calendar
+      active customers: ISO week Monday-Sunday, calendar month. Use for business reporting
+      aligned to finance periods; use agg_active_customers_daily for day-by-day monitoring.
+      active_customers is non-additive (weeks do not sum to the month).
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "CONCAT_WS('|', period_type, CAST(period_start AS STRING))"
+    columns:
+      - name: period_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [week, month]
+      - name: is_complete_period
+        description: FALSE when the period extends beyond the observed date range.
+
+unit_tests:
+  - name: dim_date_calendar_boundaries
+    description: >
+      Late-evening departure stays on its local date (no timezone shift); Sunday belongs to the
+      previous ISO week, Monday starts a new week; month boundary Jan 31 -> Feb 1.
+    model: dim_date
+    given:
+      - input: ref('stg_trip')
+        rows:
+          - {trip_start_at: "2024-01-28 23:30:00"}
+          - {trip_start_at: "2024-02-01 00:00:00"}
+    expect:
+      rows:
+        - {date_day: "2024-01-28", week_start: "2024-01-22", month_start: "2024-01-01"}
+        - {date_day: "2024-01-29", week_start: "2024-01-29", month_start: "2024-01-01"}
+        - {date_day: "2024-01-30", week_start: "2024-01-29", month_start: "2024-01-01"}
+        - {date_day: "2024-01-31", week_start: "2024-01-29", month_start: "2024-01-01"}
+        - {date_day: "2024-02-01", week_start: "2024-01-29", month_start: "2024-02-01"}
+
+  - name: active_customers_rolling_window_boundaries
+    description: >
+      Customer 1 active on 2024-01-01 counts in WAU through 01-07 (d+6) but not 01-08 (d+7), and
+      in MAU through 01-30 (d+29) but not 01-31 (d+30). Customer 2 only cancelled: never active.
+      Customer 3 has repeat orders (two non-cancelled on 01-05, one booked plus one cancelled on
+      01-03) and counts once per window.
+    model: agg_active_customers_daily
+    given:
+      - input: ref('fct_order')
+        rows:
+          - {customer_id: 1, service_date: "2024-01-01", order_status: finished}
+          - {customer_id: 2, service_date: "2024-01-01", order_status: cancelled}
+          - {customer_id: 3, service_date: "2024-01-03", order_status: booked}
+          - {customer_id: 3, service_date: "2024-01-03", order_status: cancelled}
+          - {customer_id: 3, service_date: "2024-01-05", order_status: finished}
+          - {customer_id: 3, service_date: "2024-01-05", order_status: booked}
+      - input: ref('dim_date')
+        rows:
+          - {date_day: "2024-01-01"}
+          - {date_day: "2024-01-05"}
+          - {date_day: "2024-01-07"}
+          - {date_day: "2024-01-08"}
+          - {date_day: "2024-01-30"}
+          - {date_day: "2024-01-31"}
+    expect:
+      rows:
+        - {activity_date: "2024-01-01", dau: 1, wau_rolling_7d: 1, mau_rolling_30d: 1, is_full_7d_window: false, is_full_30d_window: false}
+        - {activity_date: "2024-01-05", dau: 1, wau_rolling_7d: 2, mau_rolling_30d: 2, is_full_7d_window: false, is_full_30d_window: false}
+        - {activity_date: "2024-01-07", dau: 0, wau_rolling_7d: 2, mau_rolling_30d: 2, is_full_7d_window: true, is_full_30d_window: false}
+        - {activity_date: "2024-01-08", dau: 0, wau_rolling_7d: 1, mau_rolling_30d: 2, is_full_7d_window: true, is_full_30d_window: false}
+        - {activity_date: "2024-01-30", dau: 0, wau_rolling_7d: 0, mau_rolling_30d: 2, is_full_7d_window: true, is_full_30d_window: true}
+        - {activity_date: "2024-01-31", dau: 0, wau_rolling_7d: 0, mau_rolling_30d: 1, is_full_7d_window: true, is_full_30d_window: true}
+
+  - name: active_customers_calendar_boundaries
+    description: >
+      Sunday 01-28 falls in the week starting Monday 01-22; Monday 01-29 starts the next week.
+      Customer 1 is active on Sunday 01-28 and Thursday 02-01: counted in both weeks and both
+      months. Customer 4 has two orders in one week: counted once. Customer 3 only cancelled:
+      never active.
+    model: agg_active_customers_calendar
+    given:
+      - input: ref('fct_order')
+        rows:
+          - {customer_id: 1, service_date: "2024-01-28", order_status: finished}
+          - {customer_id: 2, service_date: "2024-01-29", order_status: booked}
+          - {customer_id: 4, service_date: "2024-01-29", order_status: finished}
+          - {customer_id: 3, service_date: "2024-01-31", order_status: cancelled}
+          - {customer_id: 4, service_date: "2024-01-31", order_status: finished}
+          - {customer_id: 1, service_date: "2024-02-01", order_status: booked}
+      - input: ref('dim_date')
+        rows:
+          - {date_day: "2024-01-28", week_start: "2024-01-22", month_start: "2024-01-01"}
+          - {date_day: "2024-01-29", week_start: "2024-01-29", month_start: "2024-01-01"}
+          - {date_day: "2024-01-31", week_start: "2024-01-29", month_start: "2024-01-01"}
+          - {date_day: "2024-02-01", week_start: "2024-01-29", month_start: "2024-02-01"}
+    expect:
+      rows:
+        - {period_type: week, period_start: "2024-01-22", period_end: "2024-01-28", active_customers: 1}
+        - {period_type: week, period_start: "2024-01-29", period_end: "2024-02-04", active_customers: 3}
+        - {period_type: month, period_start: "2024-01-01", period_end: "2024-01-31", active_customers: 3}
+        - {period_type: month, period_start: "2024-02-01", period_end: "2024-02-29", active_customers: 1}

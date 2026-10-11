@@ -1,0 +1,101 @@
+version: 2
+
+# Staging = rename, cast, trim. No joins, no business logic. Key tests live here so that source
+# defects fail at the earliest layer. Known reference defects are checked identity-by-identity by
+# tests/assert_source_defects_match_register.sql instead of a blanket relationships test.
+
+models:
+  - name: stg_trip
+    description: One row per trip.
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: origin_city
+        data_tests: [not_null]
+      - name: destination_city
+        data_tests: [not_null]
+      - name: aircraft_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_aeroplane')
+                field: aircraft_id
+      - name: trip_start_at
+        description: Recorded departure, local wall-clock time, timezone unknown.
+        data_tests: [not_null]
+      - name: trip_end_at
+        description: Recorded arrival, local wall-clock time, timezone unknown.
+        data_tests: [not_null]
+
+  - name: stg_order
+    description: One row per order.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customer')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_trip')
+                field: trip_id
+      - name: price_eur
+        description: Customer price in EUR (positive; see tests/assert_order_invariants.sql).
+        data_tests: [not_null]
+      - name: seat_no
+        data_tests: [not_null]
+      - name: order_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [finished, booked, cancelled]
+
+  - name: stg_customer
+    description: One row per customer. Contains PII; do not expose outside staging.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: customer_group_id
+        description: Group reference exactly as supplied. NULL = no group; may point to a missing group.
+
+  - name: stg_customer_group
+    description: One row per customer group.
+    columns:
+      - name: customer_group_id
+        data_tests: [unique, not_null]
+      - name: customer_group_type
+        data_tests: [not_null]
+
+  - name: stg_aeroplane
+    description: One row per aircraft.
+    columns:
+      - name: aircraft_id
+        data_tests: [unique, not_null]
+      - name: manufacturer
+        data_tests: [not_null]
+      - name: aircraft_model
+        data_tests: [not_null]
+
+  - name: stg_aeroplane_model
+    description: One row per aircraft model specification.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "CONCAT_WS('|', manufacturer, aircraft_model)"
+    columns:
+      - name: manufacturer
+        data_tests: [not_null]
+      - name: aircraft_model
+        data_tests: [not_null]
+      - name: max_seats
+        description: Maximum certified seats (upper bound, not the configured cabin).
+        data_tests: [not_null]

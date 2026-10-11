@@ -1,0 +1,10 @@
+source_table,record_id,defect_type,handling
+customer,6,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,7,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,9,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,10,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,16,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,18,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+customer,20,invalid_customer_group_reference,dim_customer.group_membership_status = invalid_group_reference
+trip,3,end_before_start,fct_trip.is_end_before_start = true; timestamps kept as recorded
+trip,9,end_before_start,fct_trip.is_end_before_start = true; timestamps kept as recorded

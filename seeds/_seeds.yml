@@ -1,0 +1,17 @@
+version: 2
+
+seeds:
+  - name: known_source_defects
+    description: >
+      Register of known, triaged source defects (one row per defective record). Checked
+      identity-by-identity by tests/assert_source_defects_match_register.sql.
+    config:
+      column_types:
+        source_table: string
+        record_id: int
+        defect_type: string
+        handling: string
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "CONCAT_WS('|', source_table, CAST(record_id AS STRING), defect_type)"

@@ -1,0 +1,24 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >
+      Uber Air source extracts landed by `just load-raw` from `data/*.csv` (one Delta table per file,
+      column names and inferred types exactly as supplied). Provenance and checksums are in
+      `docs/air_service_model.md`.
+    quoting:
+      identifier: true  # `order` is a reserved word in Spark SQL
+    tables:
+      - name: trip
+        description: One row per scheduled flight (trip). Timestamps are wall-clock values without a timezone.
+      - name: order
+        description: One row per order. Each order carries exactly one seat number and one price.
+      - name: customer
+        description: One row per customer. Contains PII (name, email, phone).
+      - name: customer_group
+        description: One row per customer group (company, private group, organisation).
+      - name: aeroplane
+        description: One row per physical aircraft in the fleet.
+      - name: aeroplane_model
+        description: Aircraft model specification catalog (converted from the supplied JSON).

@@ -1,0 +1,186 @@
+version: 2
+
+# Flat star schema. Facts are thin (keys + atomic measures/statuses); dimensions carry descriptors.
+#
+#   dim_date ──┐                     ┌── dim_customer (group attributes flattened in)
+#   dim_route ─┼── fct_trip <── fct_order ──┤
+#   dim_aircraft (model spec flattened in)  └── dim_customer_group
+#
+# fct_order also carries the conformed route_key / aircraft_id / service_date foreign keys so
+# order analysis joins straight to dimensions without passing through fct_trip.
+
+models:
+  - name: dim_date
+    description: "Grain: one row per calendar day from the first to the last trip service date."
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: Monday of the ISO week.
+      - name: month_start
+        description: First day of the calendar month.
+
+  - name: dim_customer_group
+    description: "Grain: one row per customer group in the group master."
+    columns:
+      - name: customer_group_id
+        data_tests: [unique, not_null]
+      - name: customer_group_type
+        description: Company, Private Group or Organisation (as supplied).
+        data_tests: [not_null]
+
+  - name: dim_customer
+    description: >
+      Grain: one row per customer. Group attributes are flattened in. Email and phone are not
+      exposed; only completeness flags.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: referenced_customer_group_id
+        description: Group id as supplied by the source; may point to a non-existent group.
+      - name: customer_group_id
+        description: Resolved group id; NULL unless group_membership_status = group_member.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer_group')
+                field: customer_group_id
+      - name: group_membership_status
+        description: >
+          group_member = valid group; no_group = source reference is NULL (individual customer);
+          invalid_group_reference = source references a group id missing from the group master.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [group_member, no_group, invalid_group_reference]
+
+  - name: dim_aircraft
+    description: "Grain: one row per physical aircraft, model specification flattened in."
+    columns:
+      - name: aircraft_id
+        data_tests: [unique, not_null]
+      - name: has_model_spec
+        description: FALSE when manufacturer + model is missing from the model catalog.
+        data_tests: [not_null]
+      - name: max_seats
+        description: Maximum certified seats of the model. An upper bound, not the configured cabin.
+      - name: max_range_nm
+        description: Maximum range in nautical miles (model spec, not the distance flown).
+
+  - name: dim_route
+    description: >
+      Grain: one row per directional city pair (origin -> destination) seen in trips.
+      No country, region or distance attributes exist in the source.
+    columns:
+      - name: route_key
+        description: MD5 of origin_city|destination_city.
+        data_tests: [unique, not_null]
+      - name: route_name
+        data_tests: [unique, not_null]
+
+  - name: fct_trip
+    description: >
+      Grain: one row per trip (flight), including trips with zero orders. Foreign keys, recorded
+      timestamps and atomic measures only.
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: route_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_route')
+                field: route_key
+      - name: aircraft_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_aircraft')
+                field: aircraft_id
+      - name: service_date
+        description: Local departure date. The time-attribution date for trips and their orders.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: trip_start_at
+        description: Recorded departure, local wall-clock (TIMESTAMP_NTZ, timezone unknown).
+      - name: trip_end_at
+        description: Recorded arrival, local wall-clock (TIMESTAMP_NTZ, timezone unknown).
+      - name: recorded_duration_minutes
+        description: >
+          trip_end_at - trip_start_at in minutes. Endpoints are in different, unknown local
+          timezones, so this is NOT block/flight time and can be negative. Do not use it to
+          classify short/long haul.
+      - name: is_end_before_start
+        description: TRUE when the recorded arrival precedes the departure (registered defect).
+
+  - name: fct_order
+    description: >
+      Grain: one row per order = one seat on one trip for one customer. Foreign keys, degenerate
+      seat_no, status, and atomic additive EUR measures. No order timestamp exists in the source,
+      so orders are attributed to the trip service_date.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: trip_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_trip')
+                field: trip_id
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+      - name: route_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_route')
+                field: route_key
+      - name: aircraft_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_aircraft')
+                field: aircraft_id
+      - name: service_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: order_status
+        description: finished (fulfilled), booked (open, not yet fulfilled), cancelled.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [finished, booked, cancelled]
+      - name: gross_order_value_eur
+        description: Order price in EUR, every status. Additive.
+      - name: realized_revenue_proxy_eur
+        description: >
+          Price of finished orders, else 0. Customer-paid value of fulfilled seats; a proxy because
+          Uber Air's take rate / commission is not in the source. Additive.
+      - name: open_booking_value_eur
+        description: Price of booked (not yet finished) orders, else 0. Additive.
+      - name: cancelled_value_eur
+        description: Price of cancelled orders, else 0. Additive.
+      - name: net_order_value_eur
+        description: Price of non-cancelled orders (finished + booked), else 0. Additive.
+      - name: seats_sold
+        description: 1 for a non-cancelled order, else 0. One order holds exactly one seat. Additive.
