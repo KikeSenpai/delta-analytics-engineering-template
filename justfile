@@ -80,7 +80,7 @@ seed:
 query sql:
     docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" -e "{{sql}}"
 
-# Load CSV files from data/ into prod.raw as Delta tables (non-dbt, simulates raw data landing)
+# Load CSV and JSON files from data/ into prod.raw as Delta tables (non-dbt, simulates raw data landing)
 load-raw:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -95,8 +95,16 @@ load-raw:
     for csv_file in $csv_files; do
         table_name=$(basename "$csv_file" .csv)
         echo "Loading $csv_file → prod.raw.$table_name"
+        # Column mapping keeps source headers verbatim, including spaces and parentheses.
         docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" \
-            -e "CREATE OR REPLACE TEMPORARY VIEW raw_csv_input USING CSV OPTIONS (path '/tmp/raw-data/${table_name}.csv', header 'true', inferSchema 'true'); DROP TABLE IF EXISTS prod.raw.\`${table_name}\`; CREATE TABLE prod.raw.\`${table_name}\` USING DELTA AS SELECT * FROM raw_csv_input; DROP VIEW raw_csv_input"
+            -e "CREATE OR REPLACE TEMPORARY VIEW raw_csv_input USING CSV OPTIONS (path '/tmp/raw-data/${table_name}.csv', header 'true', inferSchema 'true'); DROP TABLE IF EXISTS prod.raw.\`${table_name}\`; CREATE TABLE prod.raw.\`${table_name}\` USING DELTA TBLPROPERTIES ('delta.columnMapping.mode' = 'name') AS SELECT * FROM raw_csv_input; DROP VIEW raw_csv_input"
+    done
+    # JSON documents land verbatim as one text row (column `value`); dbt parses them.
+    for json_file in $(ls data/*.json 2>/dev/null || true); do
+        table_name=$(basename "$json_file" .json)
+        echo "Loading $json_file → prod.raw.$table_name"
+        docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" \
+            -e "CREATE OR REPLACE TEMPORARY VIEW raw_json_input USING TEXT OPTIONS (path '/tmp/raw-data/${table_name}.json', wholetext 'true'); DROP TABLE IF EXISTS prod.raw.\`${table_name}\`; CREATE TABLE prod.raw.\`${table_name}\` USING DELTA AS SELECT * FROM raw_json_input; DROP VIEW raw_json_input"
     done
     echo "Raw data loaded into prod.raw"
 
@@ -164,8 +172,9 @@ verify: ci compose-check
     just storage-check
     echo "── Restart persistence check ──"
     row_counts() {
-        for csv_file in data/*.csv; do
-            table_name=$(basename "$csv_file" .csv)
+        for raw_file in data/*.csv data/*.json; do
+            [ -e "$raw_file" ] || continue
+            table_name=$(basename "${raw_file%.*}")
             count=$(docker exec infra-spark-1 beeline -u "jdbc:hive2://localhost:10000" --silent=true \
                 --showHeader=false --outputformat=csv2 -e "SELECT COUNT(*) FROM prod.raw.\`${table_name}\`" \
                 2>/dev/null | awk 'END { print $NF }')

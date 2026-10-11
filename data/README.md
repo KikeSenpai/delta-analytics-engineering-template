@@ -35,6 +35,9 @@ Check with `just storage-check`.
 | `orders.csv`     | `prod.raw.orders` |
 | `customers.csv`  | `prod.raw.customers` |
 
+CSV headers are kept verbatim (Delta column mapping). JSON files (`*.json`)
+are loaded as one text row in column `value`, to be parsed in dbt.
+
 Table name = filename without extension. CSV must have a header row; column
 types are inferred automatically.
 

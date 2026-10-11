@@ -1,0 +1,150 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >
+      Air Service source extracts landed verbatim by `just load-raw` from `data/`.
+      CSV headers are kept exactly as supplied (Delta column mapping); the aeroplane model JSON is
+      stored as one raw text row. Provenance (origin path, git blob SHA, SHA-256) is in docs/air_service_model.md.
+    tables:
+      - name: aeroplane
+        description: "Fleet: one row per physical aeroplane (data/aeroplane.csv)."
+      - name: aeroplane_model
+        description: "Aeroplane model catalogue JSON (data/aeroplane_model.json) as a single `value` text row."
+      - name: customer
+        description: "Customers (data/customer.csv)."
+      - name: customer_group
+        description: "Customer groups (data/customer_group.csv)."
+      - name: order
+        description: "Orders, one seat per order (data/order.csv)."
+        quoting:
+          identifier: true  # ORDER is a reserved word
+      - name: trip
+        description: "Trips offered by operators (data/trip.csv)."
+
+models:
+  - name: stg_aeroplane
+    description: "Typed fleet. Grain: one row per airplane_id."
+    columns:
+      - name: airplane_id
+        data_tests: [unique, not_null]
+      - name: manufacturer
+        data_tests: [not_null]
+      - name: aircraft_model
+        data_tests: [not_null]
+
+  - name: stg_aeroplane_model
+    description: "Flattened model catalogue. Grain: one row per (manufacturer, aircraft_model)."
+    data_tests:
+      - unique:
+          column_name: "CONCAT(manufacturer, '|', aircraft_model)"
+    columns:
+      - name: manufacturer
+        data_tests: [not_null]
+      - name: aircraft_model
+        data_tests: [not_null]
+      - name: max_seats
+        description: "Maximum seats for the model."
+        data_tests: [not_null]
+      - name: max_weight
+        description: "Maximum weight. Unit not stated in the source (values are consistent with kg MTOW)."
+      - name: max_distance
+        description: "Maximum range. Unit not stated in the source (values are consistent with nautical miles)."
+      - name: engine_type
+
+  - name: stg_customer
+    description: "Typed customers without PII contact fields. Grain: one row per customer_id."
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: customer_name
+        data_tests: [not_null]
+      - name: customer_group_id
+        description: "NULL = customer belongs to no group. Non-null values may not resolve (known source defect)."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_customer_group')
+                field: customer_group_id
+              config:
+                # Known source defect: 7 customers reference group IDs 6-10, which do not exist.
+                # Warn on the known 7; fail if more appear.
+                severity: error
+                warn_if: ">0"
+                error_if: ">7"
+
+  - name: stg_customer_group
+    description: "Typed customer groups. Grain: one row per customer_group_id."
+    columns:
+      - name: customer_group_id
+        data_tests: [unique, not_null]
+      - name: customer_group_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Company', 'Private Group', 'Organisation']
+      - name: customer_group_name
+        data_tests: [not_null]
+      - name: registry_number
+        description: "Legal registry number; NULL for the private group (no legal entity)."
+
+  - name: stg_order
+    description: "Typed orders. Grain: one row per order_id (= one seat on one trip)."
+    data_tests:
+      - unique:
+          column_name: "CONCAT(trip_id, '|', seat_no)"
+          config:
+            where: "order_status <> 'Cancelled'"
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customer')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_trip')
+                field: trip_id
+      - name: price_eur
+        description: "Seat price in EUR as recorded on the order (also kept for cancelled orders)."
+        data_tests: [not_null]
+      - name: seat_no
+        data_tests: [not_null]
+      - name: order_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Booked', 'Finished', 'Cancelled']
+
+  - name: stg_trip
+    description: "Typed trips. Grain: one row per trip_id."
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: origin_city
+        data_tests: [not_null]
+      - name: destination_city
+        data_tests: [not_null]
+      - name: airplane_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_aeroplane')
+                field: airplane_id
+      - name: start_local_at
+        description: "Departure wall-clock time, time zone unknown (TIMESTAMP_NTZ)."
+        data_tests: [not_null]
+      - name: end_local_at
+        description: "Arrival wall-clock time, time zone unknown (TIMESTAMP_NTZ)."
+        data_tests: [not_null]

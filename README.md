@@ -1,5 +1,7 @@
 # Delta Analytics Engineering Template
 
+> **Air Service take-home:** the analytical model, source profile, KPI definitions, limitations and CI/CD proposal are in [docs/air_service_model.md](docs/air_service_model.md). Source files are in `data/`.
+
 Delta Lake analytics stack for analytics engineer take-home tests, shaped like Databricks: object storage holds the tables, Unity Catalog governs them, Spark computes, dbt transforms. UV manages Python dependencies and sqlfluff lints SQL.
 
 ## Stack
@@ -120,7 +122,7 @@ Run `just` to see all recipes:
 | `just infra-logs` | Tail service logs |
 | `just compose-check` | Validate compose syntax (no Docker needed) |
 | `just smoke` | UC API + dbt connection check |
-| `just load-raw` | Load CSV files from `data/` into `prod.raw` (non-dbt) |
+| `just load-raw` | Load CSV and JSON files from `data/` into `prod.raw` (non-dbt) |
 | `just query "SELECT ..."` | Run ad-hoc Spark SQL against the running stack |
 | `just storage-check` | Check every `prod.raw` / `prod.analytics` table has its Delta log in MinIO |
 | `just minio-ls` | List all objects in `s3://delta-warehouse` |

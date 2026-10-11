@@ -17,6 +17,7 @@ dev = [
 [tool.sqlfluff.core]
 dialect = "sparksql"
 templater = "jinja"
+max_line_length = 120
 
 [tool.sqlfluff.templater.jinja]
 apply_dbt_builtins = true
@@ -36,9 +37,6 @@ extended_capitalisation_identifiers = "lowercase"
 
 [tool.sqlfluff.rules.capitalisation.functions]
 extended_capitalisation_functions = "upper"
-
-[tool.sqlfluff.rules.layout.long_lines]
-max_line_length = 120
 
 [tool.sqlfluff.rules.ambiguous.column_count]
 # dbt SELECT * is common in staging — skip ambiguous column count

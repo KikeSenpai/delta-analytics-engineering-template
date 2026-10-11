@@ -12,10 +12,12 @@ MinIO is required: every `prod.*` Delta table is physically stored in `s3://delt
 
 ```
 ├── dbt_project.yml, profiles.yml   # dbt project root
-├── models/                          # dbt models (empty — template user adds)
+├── models/                          # dbt models: staging/ (stg_*) and marts/ (dim_*, fct_*, metrics_*)
+├── tests/                           # singular dbt tests (invariants, reconciliations, known source defects)
+├── docs/air_service_model.md        # Air Service model documentation (keep in sync with models/)
 ├── seeds/                           # dbt seed files (empty — optional)
 ├── macros/                          # dbt macros (empty — template user adds)
-├── data/                            # Raw CSV landing zone (load-raw reads from here)
+├── data/                            # Raw CSV/JSON landing zone (load-raw reads from here; holds the Air Service sources)
 ├── infra/                           # Docker stack (compose, Spark Dockerfile + conf, UC conf)
 ├── justfile                         # CLI commands
 ├── pyproject.toml                   # Python deps + sqlfluff config
@@ -93,7 +95,7 @@ Docker runs in orbs too: `.agents/setup` installs Docker Engine + the Compose pl
 | `just infra-status` | Check Docker container health |
 | `just infra-logs` | Tail Docker service logs |
 | `just smoke` | UC API + dbt connection check (Docker) |
-| `just load-raw` | Load CSV files from `data/` into `prod.raw` (Docker, non-dbt) |
+| `just load-raw` | Load CSV and JSON files from `data/` into `prod.raw` (Docker, non-dbt) |
 | `just query "SELECT ..."` | Run ad-hoc Spark SQL against the Docker stack |
 | `just storage-check` | Assert every prod.raw / prod.analytics table is stored in MinIO |
 | `just minio-ls` | List objects in the MinIO warehouse bucket |

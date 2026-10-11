@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  - name: dim_aircraft
+    description: "Grain: one row per physical aeroplane (airplane_id), with model specification from the JSON catalogue."
+    columns:
+      - name: airplane_id
+        data_tests: [unique, not_null]
+      - name: manufacturer
+      - name: aircraft_model
+      - name: max_seats
+        description: "Seat capacity of the model (catalogue maximum, not the operator's actual cabin layout)."
+      - name: max_weight
+        description: "Unit not stated in the source."
+      - name: max_distance
+        description: "Range. Unit not stated in the source."
+      - name: engine_type
+      - name: has_model_spec
+        description: "False when the aeroplane's (manufacturer, model) is not in the JSON catalogue."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [true]
+
+  - name: dim_customer
+    description: "Grain: one row per customer_id. Group attributes are a current snapshot (no history in source)."
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: customer_name
+      - name: customer_group_id
+        description: "Raw group reference, kept even when it does not resolve."
+      - name: customer_group_name
+      - name: customer_group_type
+        description: "Company / Private Group / Organisation. NULL when no group or unresolved reference."
+      - name: customer_group_reference_status
+        description: >
+          no_group = customer has no group; valid_group = reference resolves;
+          unknown_group_reference = group ID not found in customer_group (source defect).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['no_group', 'valid_group', 'unknown_group_reference']
+
+  - name: fct_order
+    description: >
+      Grain: one row per order (one seat on one trip). Time attribution: trip local departure date
+      (orders have no own timestamp). Trip descriptors are denormalised; trip-level measures live in fct_trip.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+      - name: trip_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('fct_trip')
+                field: trip_id
+      - name: airplane_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_aircraft')
+                field: airplane_id
+      - name: origin_city
+      - name: destination_city
+      - name: departure_date
+        description: "Trip local departure date; the attribution date for all order metrics."
+        data_tests: [not_null]
+      - name: seat_no
+      - name: order_status
+      - name: is_active
+        description: "True for Booked or Finished (seat held / used); false for Cancelled."
+        data_tests: [not_null]
+      - name: price_eur
+        description: "Recorded seat price, regardless of status."
+      - name: gross_booking_value_eur
+        description: "price_eur when active (Booked or Finished), else 0. Customer-paid value, not net revenue."
+      - name: realized_revenue_proxy_eur
+        description: "price_eur when Finished, else 0. Proxy only: no take rate, refunds, fees or accounting data."
+      - name: cancelled_value_eur
+        description: "price_eur when Cancelled, else 0."
+
+  - name: fct_trip
+    description: >
+      Grain: one row per trip (supply event), including trips with zero orders.
+      Order measures are aggregated from fct_order; time attribution is the local departure date.
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: airplane_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_aircraft')
+                field: airplane_id
+      - name: origin_city
+      - name: destination_city
+      - name: start_local_at
+      - name: end_local_at
+      - name: departure_date
+        data_tests: [not_null]
+      - name: is_end_before_start
+        description: >
+          True when local arrival is before local departure. Expected for time-zone-crossing flights
+          (times are local, zone unknown); makes naive duration unusable.
+      - name: seat_capacity
+        description: "Seats offered = aircraft model max_seats."
+        data_tests: [not_null]
+      - name: orders
+        description: "All orders on the trip, any status."
+      - name: active_seats
+        description: "Booked + Finished seats."
+      - name: booked_seats
+      - name: finished_seats
+      - name: cancelled_seats
+      - name: gross_booking_value_eur
+      - name: realized_revenue_proxy_eur
+      - name: cancelled_value_eur
+      - name: load_factor
+        description: "active_seats / seat_capacity. 0 for trips without demand."
+
+  - name: metrics_active_customers_daily
+    description: >
+      Grain: one row per calendar day from first to last trip departure (days without demand included).
+      Active customer = at least one active (Booked or Finished) order on a trip departing in the window.
+      Rolling counts are distinct customers and must not be summed across days.
+    columns:
+      - name: activity_date
+        data_tests: [unique, not_null]
+      - name: dau
+        description: "Distinct active customers with a departure on activity_date."
+      - name: wau
+        description: "Distinct active customers with a departure in the 7 days ending on activity_date."
+      - name: mau
+        description: "Distinct active customers with a departure in the 30 days ending on activity_date."
+      - name: is_complete_7d_window
+        description: "False when the 7-day window starts before the first departure in the data."
+      - name: is_complete_30d_window
+        description: "False when the 30-day window starts before the first departure in the data."
