@@ -19,7 +19,8 @@ MinIO is required: every `prod.*` Delta table is physically stored in `s3://delt
 ├── infra/                           # Docker stack (compose, Spark Dockerfile + conf, UC conf)
 ├── justfile                         # CLI commands
 ├── pyproject.toml                   # Python deps + sqlfluff config
-├── .agents/                         # Amp orb lifecycle scripts (setup, resume)
+├── .agents/                         # Amp orb lifecycle scripts (setup, resume) + project skills
+│   └── skills/solving-analytics-take-homes/  # Load for take-home solving, source-to-model design, review
 └── .amp/services.yaml               # Amp orb supervised services (dockerd)
 ```
 
